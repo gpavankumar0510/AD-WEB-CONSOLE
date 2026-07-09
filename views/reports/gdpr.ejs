@@ -1,0 +1,22 @@
+<%- include('../layout', { title: 'GDPR Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">GDPR Data Report</div><div class="topbar-sub">User personal data inventory — <%= users.length %> accounts</div></div>
+<div class="topbar-actions"><a href="/reports/export/gdpr" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<div class="alert alert-info">This report shows personal data stored in Active Directory for GDPR compliance documentation.</div>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card"><div class="card-body">
+<table><thead><tr><th>Username</th><th>Display Name</th><th>Email</th><th>Department</th><th>Title</th><th>Created</th><th>Last Logon</th></tr></thead><tbody>
+<% for(var i=0;i<users.length;i++){var u=users[i];var ll=parseInt(u.lastLogon||0);%>
+<tr>
+  <td class="mono" style="font-size:11px;"><%= u.sAMAccountName %></td>
+  <td style="font-size:12px;font-weight:500;"><%= u.displayName||'—' %></td>
+  <td style="font-size:12px;"><%= u.mail||'—' %></td>
+  <td style="font-size:12px;"><%= u.department||'—' %></td>
+  <td style="font-size:12px;"><%= u.title||'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= u.whenCreated?new Date(u.whenCreated).toLocaleDateString('en-GB'):'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= ll>0?new Date(ll/1e4-11644473600000).toLocaleDateString('en-GB'):'Never' %></td>
+</tr>
+<%}%>
+</tbody></table>
+</div></div></div>
+<%- include('../layout-end') %>

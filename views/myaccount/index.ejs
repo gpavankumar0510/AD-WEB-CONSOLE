@@ -1,0 +1,118 @@
+<%- include('../layout', { title: 'My Account', page: 'myaccount', admin }) %>
+<div class="topbar"><div><div class="topbar-title">My Account</div><div class="topbar-sub">Self-service profile and password management</div></div></div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!user){%><div class="alert alert-error">Could not load user profile. Please log in again.</div><%}else{%>
+<% var uac=parseInt(user.userAccountControl||0);var isDisabled=!!(uac&2);var isLocked=user.lockoutTime&&user.lockoutTime!=='0';%>
+<div style="display:grid;grid-template-columns:1fr 300px;gap:14px;">
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card animate-slide"><div class="card-header"><span class="card-title">My Profile</span></div><div class="card-body" style="padding:16px;">
+    <form method="POST" action="/myaccount/update">
+      <div class="form-row"><div class="form-group"><label>Display Name</label><input type="text" value="<%= user.displayName||'' %>" readonly style="opacity:.6;"/></div><div class="form-group"><label>Email</label><input type="text" value="<%= user.mail||'' %>" readonly style="opacity:.6;"/></div></div>
+      <div class="form-row"><div class="form-group"><label>Phone <span style="font-size:10px;color:var(--info);">(editable)</span></label><input type="text" name="telephoneNumber" value="<%= user.telephoneNumber||'' %>"/></div><div class="form-group"><label>Department</label><input type="text" name="department" value="<%= user.department||'' %>" readonly style="opacity:.6;"/></div></div>
+      <div class="form-group"><label>Job Title</label><input type="text" name="title" value="<%= user.title||'' %>" readonly style="opacity:.6;"/></div>
+      <button type="submit" class="btn btn-primary btn-sm">Update Profile</button>
+    </form></div></div>
+
+    <div class="card animate-slide" style="animation-delay:.05s;"><div class="card-header"><span class="card-title">Change Password</span></div><div class="card-body" style="padding:16px;">
+    <form method="POST" action="/myaccount/change-password">
+      <div class="form-group"><label>New Password</label><input type="password" name="newPassword" id="myPw" required placeholder="Min 8 chars, 3 of: upper/lower/number/symbol" autocomplete="new-password"/>
+        <div class="pwd-strength"><div class="pwd-strength-bar" id="myPwBar"></div></div>
+        <div class="pwd-strength-label" id="myPwLabel"></div>
+      </div>
+      <div class="form-group"><label>Confirm Password</label><input type="password" name="confirmPassword" required placeholder="Repeat password" autocomplete="new-password"/></div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">After changing password you will be logged out and must log in again.</div>
+      <button type="submit" class="btn btn-warning">Change Password</button>
+    </form></div></div>
+
+    <div class="card animate-slide" style="animation-delay:.1s;"><div class="card-header"><span class="card-title">My Groups (<%= memberOf.length %>)</span></div><div class="card-body" style="max-height:200px;overflow-y:auto;">
+      <% if(!memberOf.length){%><div class="empty-state" style="padding:16px;"><p>No group memberships</p></div><%}else{%>
+      <table><thead><tr><th>Group Name</th></tr></thead><tbody><% for(var mi=0;mi<memberOf.length;mi++){var g=memberOf[mi];var gCN=g.split(',')[0].replace('CN=','').replace('cn=','');%><tr><td style="font-size:13px;font-weight:500;"><%= gCN %></td></tr><%}%></tbody></table><%}%>
+    </div></div>
+
+    <% if(appliedGPOs.length){%>
+    <div class="card animate-slide" style="animation-delay:.15s;"><div class="card-header"><span class="card-title">Applied GPOs (<%= appliedGPOs.length %>)</span></div><div class="card-body" style="max-height:200px;overflow-y:auto;">
+      <table><thead><tr><th>Policy</th><th>Via</th></tr></thead><tbody><% for(var gi=0;gi<appliedGPOs.length;gi++){var gpo=appliedGPOs[gi];%><tr><td style="font-size:12px;font-weight:500;"><%= gpo.name %></td><td><span class="badge badge-neutral" style="font-size:10px;"><%= gpo.linkType||'Direct' %></span></td></tr><%}%></tbody></table>
+    </div></div><%}%>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card animate-slide"><div class="card-header"><span class="card-title">Account Status</span></div><div class="card-body" style="padding:0 16px;">
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Username</span><span class="mono" style="font-size:12px;"><%= user.sAMAccountName %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">UPN</span><span class="mono" style="font-size:11px;"><%= user.userPrincipalName||'—' %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Department</span><span style="font-size:12px;"><%= user.department||'—' %></span></div>
+      <% var pls=parseInt(user.pwdLastSet||0);var plsDate=pls>0?new Date(pls/1e4-11644473600000):null;
+      var maxAge=parseInt((typeof appSettings!=='undefined'&&appSettings.maxPasswordAgeDays)||90);
+      var expiryDate=plsDate?new Date(plsDate.getTime()+maxAge*24*60*60*1000):null;
+      var daysLeft=expiryDate?Math.round((expiryDate-Date.now())/(1000*60*60*24)):null; %>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Pwd Changed</span><span style="font-size:12px;"><%= plsDate?plsDate.toLocaleDateString('en-GB'):'Never' %></span></div>
+      <% if(daysLeft!==null){%>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Pwd Expires</span><span style="font-size:12px;color:<%= daysLeft<=0?'var(--danger)':daysLeft<=7?'var(--warning)':'var(--text)' %>"><%= daysLeft<=0?'Expired':daysLeft+' days' %></span></div>
+      <%}%>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Account Status</span><span class="badge <%= isLocked?'badge-locked':isDisabled?'badge-disabled':'badge-active' %>"><%= isLocked?'Locked':isDisabled?'Disabled':'Active' %></span></div>
+      <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Role</span><span class="badge <%= admin.role==='admin'?'badge-locked':'badge-active' %>"><%= admin.role %></span></div>
+    </div></div>
+
+    <!-- MFA section -->
+    <div class="card animate-slide" style="animation-delay:.08s;"><div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      <span class="card-title">Multi-Factor Authentication</span>
+    </div><div class="card-body" style="padding:14px;">
+      <% var userHasMFA = typeof mfaStatus!=='undefined' && mfaStatus; %>
+      <% if(userHasMFA){%>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span class="badge badge-active">✓ Enabled</span>
+        <span style="font-size:11px;color:var(--text3);">Your account is protected with 2FA</span>
+      </div>
+      <form method="POST" action="/mfa-disable" onsubmit="return confirm('Disable MFA? This reduces your account security.')">
+        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Disable MFA</button>
+      </form>
+      <%}else{%>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Add an extra layer of security to your account with an authenticator app.</div>
+      <a href="/mfa-setup" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">Set Up MFA</a>
+      <%}%>
+    </div></div>
+
+    <% if(lastBackup){%>
+    <div class="card animate-slide" style="animation-delay:.12s;"><div class="card-header"><span class="card-title">Last Backup</span></div><div class="card-body" style="padding:0 16px;">
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Type</span><span class="mono" style="font-size:12px;"><%= lastBackup.type %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Status</span><span class="badge <%= lastBackup.status==='completed'?'badge-active':'badge-disabled' %>"><%= lastBackup.status %></span></div>
+      <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Time</span><span style="font-size:12px;"><%= new Date(lastBackup.timestamp).toLocaleDateString('en-GB') %></span></div>
+    </div></div><%}%>
+  </div>
+</div><%}%></div>
+
+<style>
+.pwd-strength{height:4px;background:var(--border2);border-radius:2px;overflow:hidden;margin-top:6px;}
+.pwd-strength-bar{height:100%;width:0%;transition:width .3s,background .3s;border-radius:2px;}
+.pwd-strength-label{font-size:10px;margin-top:3px;color:var(--text3);}
+</style>
+<script>
+function attachPwdStrength(inputId, barId, labelId){
+  var inp=document.getElementById(inputId), bar=document.getElementById(barId), label=document.getElementById(labelId);
+  if(!inp||!bar)return;
+  inp.addEventListener('input',function(){
+    var pw=inp.value;
+    var score=0;
+    score+=Math.min(pw.length*4,40);
+    if(/[a-z]/.test(pw))score+=10;
+    if(/[A-Z]/.test(pw))score+=10;
+    if(/[0-9]/.test(pw))score+=10;
+    if(/[^a-zA-Z0-9]/.test(pw))score+=15;
+    if(pw.length>=12)score+=10;
+    if(pw.length>=16)score+=5;
+    score=Math.min(score,100);
+    bar.style.width=score+'%';
+    var color=score<30?'var(--danger)':score<60?'var(--warning)':score<85?'var(--info)':'var(--success)';
+    bar.style.background=color;
+    if(label){
+      var text=score<30?'Weak':score<60?'Fair':score<85?'Good':'Strong';
+      label.textContent=pw?text+' password':'';
+      label.style.color=color;
+    }
+  });
+}
+</script>
+<script>attachPwdStrength('myPw','myPwBar','myPwLabel');</script>
+<%- include('../layout-end') %>

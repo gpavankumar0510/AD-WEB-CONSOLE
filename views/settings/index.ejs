@@ -1,0 +1,304 @@
+<%- include('../layout', { title: 'Settings', page: 'settings', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Settings</div><div class="topbar-sub">Console configuration, notifications and security</div></div>
+</div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<form method="POST" action="/settings/save">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Session & Audit -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      <span class="card-title">Session & Audit</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div class="form-group">
+        <label>Session Timeout (minutes)</label>
+        <input type="number" name="sessionTimeoutMinutes" value="<%= s.sessionTimeoutMinutes||480 %>" min="5" max="1440"/>
+        <span class="form-hint">User is logged out after this period of inactivity</span>
+      </div>
+      <div class="form-group">
+        <label>Audit Log Retention (days)</label>
+        <input type="number" name="auditLogRetentionDays" value="<%= s.auditLogRetentionDays||90 %>" min="7" max="3650"/>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/reports/audit" class="btn btn-secondary btn-sm">View Audit Log</a>
+        <a href="/settings/audit-export" class="btn btn-primary btn-sm">Download CSV</a>
+        <button type="button" class="btn btn-danger btn-sm" onclick="clearAudit()">Clear Audit Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span class="card-title">Security</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <label style="margin-bottom:2px;">Enable MFA</label>
+          <div style="font-size:11px;color:var(--text3);">Multi-factor authentication for all users</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" name="mfaEnabled" <%= s.mfaEnabled?'checked':'' %>/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <label style="margin-bottom:2px;">Enforce MFA for Admins</label>
+          <div style="font-size:11px;color:var(--text3);">Require MFA for all domain admin logins</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" name="mfaEnforced" <%= s.mfaEnforced?'checked':'' %>/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label>Organization Name</label>
+        <input type="text" name="orgName" value="<%= s.orgName||'' %>" placeholder="Your Organization"/>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Dashboard Announcement</label>
+        <textarea name="orgAnnouncement" rows="2" placeholder="Message shown on dashboard..." style="resize:vertical;"><%= s.orgAnnouncement||'' %></textarea>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Holidays -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span class="card-title">Custom Holidays / Org Calendar</span>
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div id="holidaysList">
+      <% var orgHolidays = s.orgHolidays || []; %>
+      <% for(var hi=0;hi<orgHolidays.length;hi++){var h=orgHolidays[hi];%>
+      <div class="holiday-row" style="display:grid;grid-template-columns:160px 1fr auto;gap:8px;margin-bottom:6px;">
+        <input type="date" name="holidayDate[]" value="<%= h.date %>"/>
+        <input type="text" name="holidayName[]" value="<%= h.name %>" placeholder="Holiday name"/>
+        <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.holiday-row').remove()">✕</button>
+      </div>
+      <%}%>
+    </div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addHolidayRow()">+ Add Holiday</button>
+    <span class="form-hint" style="display:block;margin-top:6px;">Shown in the dashboard "Upcoming Holidays" widget alongside default federal holidays.</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Email Notifications -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      <span class="card-title">Email Notifications</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div class="form-group">
+        <label>Email Provider</label>
+        <select id="emailProviderSel" onchange="applyEmailPreset(this.value)">
+          <option value="">Select a preset (or configure manually below)...</option>
+          <option value="gmail">Gmail</option>
+          <option value="outlook">Outlook.com</option>
+          <option value="m365">Microsoft 365</option>
+          <option value="exchange">Exchange Server (on-prem)</option>
+          <option value="custom">Custom / Other SMTP Server</option>
+        </select>
+        <span class="form-hint" id="providerHint">Choosing a preset fills in the SMTP host/port — you still need to enter the account and password.</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>SMTP Host</label><input type="text" name="smtpHost" id="smtpHostInput" value="<%= s.smtpHost||'' %>" placeholder="smtp.domain.local"/></div>
+        <div class="form-group"><label>SMTP Port</label><input type="number" name="smtpPort" id="smtpPortInput" value="<%= s.smtpPort||25 %>" min="1" max="65535"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>SMTP Username</label><input type="text" name="smtpUser" value="<%= s.smtpUser||'' %>" placeholder="alerts@domain.local" autocomplete="off"/></div>
+        <div class="form-group"><label>SMTP Password</label><input type="password" name="smtpPass" placeholder="(unchanged)" autocomplete="new-password"/></div>
+      </div>
+      <div id="appPasswordWarning" style="display:none;background:var(--warning-bg);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--warning);">
+        ⚠️ This provider requires an <strong>App Password</strong> if your account has 2-Step Verification enabled — your normal account password will be rejected. Generate one in your account security settings and paste it here.
+      </div>
+      <div class="form-group"><label>From Address</label><input type="email" name="smtpFrom" id="smtpFromInput" value="<%= s.smtpFrom||'' %>" placeholder="ad-console@domain.local"/></div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Alert Recipients</label>
+        <textarea name="alertEmails" rows="3" placeholder="admin@domain.local&#10;security@domain.local" style="resize:vertical;"><%= (s.alertEmails||[]).join('\n') %></textarea>
+        <span class="form-hint">One email per line. Alerts sent for: lockouts, deletions, failures, security events.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup Configuration -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <span class="card-title">Backup Configuration</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div class="form-group">
+        <label>Backup Destination</label>
+        <input type="text" name="backupDestination" value="<%= s.backupDestination||'C:\\ADBackups' %>" placeholder="C:\ADBackups or \\server\share\backups"/>
+        <span class="form-hint">Local path or UNC share path</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Schedule (cron)</label>
+          <input type="text" name="backupSchedule" value="<%= s.backupSchedule||'0 2 * * *' %>" placeholder="0 2 * * *"/>
+          <span class="form-hint">0 2 * * * = Daily at 2am</span>
+        </div>
+        <div class="form-group">
+          <label>Retention (days)</label>
+          <input type="number" name="backupRetentionDays" value="<%= s.backupRetentionDays||30 %>" min="1" max="365"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Backup Type</label>
+        <select name="backupType">
+          <option value="daily" <%= s.backupType==='daily'?'selected':'' %>>Daily (AD State)</option>
+          <option value="full" <%= s.backupType==='full'?'selected':'' %>>Full Server Backup</option>
+          <option value="sysvol" <%= s.backupType==='sysvol'?'selected':'' %>>SYSVOL Only</option>
+          <option value="system-state" <%= s.backupType==='system-state'?'selected':'' %>>System State</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <label style="margin-bottom:2px;">Encrypt Backups</label>
+          <div style="font-size:11px;color:var(--text3);">AES-256-GCM encryption for AD-State (IFM) backup files</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" name="backupEncryption" id="bkEncToggle" <%= s.backupEncryption?'checked':'' %> onchange="document.getElementById('bkEncPassRow').style.display=this.checked?'block':'none'"/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group" id="bkEncPassRow" style="margin-bottom:0;display:<%= s.backupEncryption?'block':'none' %>;">
+        <label>Encryption Passphrase</label>
+        <input type="password" name="backupEncryptionPassphrase" placeholder="<%= s.backupEncryptionPassphrase?'(unchanged)':'Enter a strong passphrase' %>" autocomplete="new-password"/>
+        <span class="form-hint">Used to encrypt backup files with AES-256-GCM. Store this safely — required to decrypt backups.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+  <button type="submit" class="btn btn-primary">Save Settings</button>
+  <button type="button" class="btn btn-secondary" onclick="verifyEmailConnection(event)">Verify SMTP Connection</button>
+  <button type="button" class="btn btn-secondary" onclick="testEmail(event)">Test Email Alert (to saved recipients)</button>
+  <span style="display:flex;gap:6px;align-items:center;margin-left:6px;">
+    <input type="email" id="testEmailOverride" placeholder="or send test to a specific address..." style="width:240px;font-size:12px;padding:6px 10px;"/>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="testEmailTo(event)">Send</button>
+  </span>
+</div>
+<div id="emailTestStatus" style="margin-top:10px;font-size:12px;white-space:pre-wrap;font-family:var(--mono);"></div>
+</form>
+
+</div>
+
+<style>
+.toggle-switch{position:relative;display:inline-block;width:40px;height:22px;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:22px;transition:.3s;}
+.toggle-slider::before{content:'';position:absolute;height:16px;width:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s;}
+.toggle-switch input:checked + .toggle-slider{background:var(--success);}
+.toggle-switch input:checked + .toggle-slider::before{transform:translateX(18px);}
+</style>
+
+<script>
+function addHolidayRow(){
+  var container=document.getElementById('holidaysList');
+  var row=document.createElement('div');
+  row.className='holiday-row';
+  row.style.cssText='display:grid;grid-template-columns:160px 1fr auto;gap:8px;margin-bottom:6px;';
+  var dateInp=document.createElement('input');dateInp.type='date';dateInp.name='holidayDate[]';
+  var nameInp=document.createElement('input');nameInp.type='text';nameInp.name='holidayName[]';nameInp.placeholder='Holiday name';
+  var btn=document.createElement('button');btn.type='button';btn.className='btn btn-danger btn-sm';btn.textContent='✕';
+  btn.onclick=function(){row.remove();};
+  row.appendChild(dateInp);row.appendChild(nameInp);row.appendChild(btn);
+  container.appendChild(row);
+}
+var EMAIL_PRESETS = {
+  gmail:    { host: 'smtp.gmail.com', port: 587, hint: 'Gmail requires an App Password (not your normal password) if 2FA is enabled. Generate one at myaccount.google.com/apppasswords.' },
+  outlook:  { host: 'smtp-mail.outlook.com', port: 587, hint: 'Use your full Outlook.com email address as the username.' },
+  m365:     { host: 'smtp.office365.com', port: 587, hint: 'Microsoft 365 may require an App Password or SMTP AUTH to be enabled in the admin center for the mailbox.' },
+  exchange: { host: 'mail.yourdomain.local', port: 587, hint: 'Replace with your internal Exchange server hostname. Port 25 (unauthenticated relay) or 587 (authenticated) depending on your Exchange receive connector config.' },
+  custom:   { host: '', port: 587, hint: 'Enter your SMTP provider\'s host and port manually.' },
+};
+function applyEmailPreset(key){
+  var preset = EMAIL_PRESETS[key];
+  var hintEl = document.getElementById('providerHint');
+  var warnEl = document.getElementById('appPasswordWarning');
+  if(!preset){
+    hintEl.textContent = 'Choosing a preset fills in the SMTP host/port — you still need to enter the account and password.';
+    warnEl.style.display = 'none';
+    return;
+  }
+  document.getElementById('smtpHostInput').value = preset.host;
+  document.getElementById('smtpPortInput').value = preset.port;
+  hintEl.textContent = preset.hint;
+  warnEl.style.display = (key==='gmail' || key==='outlook' || key==='m365') ? 'block' : 'none';
+}
+async function clearAudit(){
+  if(!confirm('Clear ALL audit log entries permanently?\nThis cannot be undone.'))return;
+  var r=await fetch('/settings/audit-clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  var d=await r.json();if(d.ok)alert('Audit log cleared.');else alert(d.error);
+}
+function showEmailStatus(ok, text){
+  var el = document.getElementById('emailTestStatus');
+  el.style.color = ok ? 'var(--success)' : 'var(--danger)';
+  el.textContent = text;
+}
+
+async function testEmail(evt){
+  var button = evt && evt.target;
+  if(button){ button.disabled=true; var orig=button.textContent; button.textContent='Sending...'; }
+  showEmailStatus(true, 'Sending test email to saved recipients...');
+  try{
+    var r=await fetch('/settings/test-email',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    showEmailStatus(d.ok, d.ok ? ('✓ '+(d.message||'Test email accepted by the SMTP server.')) : ('✗ FAILED: '+d.error));
+  }catch(e){
+    showEmailStatus(false, '✗ Error calling test endpoint: '+e.message);
+  }
+  if(button){ button.disabled=false; button.textContent=orig; }
+}
+
+async function verifyEmailConnection(evt){
+  var button = evt && evt.target;
+  if(button){ button.disabled=true; var orig=button.textContent; button.textContent='Verifying...'; }
+  showEmailStatus(true, 'Connecting to SMTP server...');
+  try{
+    var r=await fetch('/settings/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    var diagLine = d.diagnostic ? ('\n\nDiagnostic (no password shown): '+d.diagnostic) : '';
+    showEmailStatus(d.ok, (d.ok ? '✓ SMTP connection and authentication successful.' : ('✗ Connection FAILED: '+d.error)) + diagLine);
+  }catch(e){
+    showEmailStatus(false, '✗ Error: '+e.message);
+  }
+  if(button){ button.disabled=false; button.textContent=orig; }
+}
+
+async function testEmailTo(evt){
+  var addr = document.getElementById('testEmailOverride').value.trim();
+  if(!addr){ showEmailStatus(false, '✗ Enter an email address first.'); return; }
+  var button = evt && evt.target;
+  if(button){ button.disabled=true; var orig=button.textContent; button.textContent='Sending...'; }
+  showEmailStatus(true, 'Sending test email to '+addr+'...');
+  try{
+    var r=await fetch('/settings/test-email-to',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:addr})});
+    var d=await r.json();
+    showEmailStatus(d.ok, d.ok ? ('✓ '+(d.message||'Sent to '+addr+'.')) : ('✗ FAILED: '+d.error));
+  }catch(e){
+    showEmailStatus(false, '✗ Error: '+e.message);
+  }
+  if(button){ button.disabled=false; button.textContent=orig; }
+}
+</script>
+<%- include('../layout-end') %>

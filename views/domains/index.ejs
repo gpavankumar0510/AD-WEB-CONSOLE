@@ -1,0 +1,203 @@
+<%- include('../layout', { title: 'Multi-Domain & Trusts', page: 'domains', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Multi-Domain & Forest Trust Monitoring</div><div class="topbar-sub">Domain registry, forest discovery, and trust relationship health</div></div>
+  <div class="topbar-actions"><button class="btn btn-primary" id="discoverBtn" onclick="discoverForest()">Discover Forest Domains</button></div>
+</div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<div class="alert alert-info" style="margin-bottom:16px;">The domain this console manages directly (read/write) is configured via <code>.env</code>. Domains registered here are <strong>read-only</strong> inventory/monitoring entries — administrative actions (create/edit/delete users, groups, GPOs) only apply to the primary managed domain.</div>
+
+<div id="discoveryResults"></div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Registered domains -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">Registered Domains (<%= registered.length %>)</span></div>
+    <div class="card-body">
+      <% if(!registered.length){%>
+      <div class="empty-state" style="padding:20px;"><p>No additional domains registered. Use "Discover Forest Domains" to find domains automatically, or add one manually below.</p></div>
+      <%}else{%>
+      <table><thead><tr><th>Domain</th><th>NetBIOS</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>
+      <% for(var i=0;i<registered.length;i++){var d=registered[i];%>
+      <tr>
+        <td style="font-size:12px;font-weight:500;"><%= d.dnsRoot %></td>
+        <td class="mono text-muted" style="font-size:11px;"><%= d.netbios||'—' %></td>
+        <td><span class="badge badge-neutral" style="font-size:10px;"><%= d.type %></span></td>
+        <td><span class="badge <%= d.status==='active'?'badge-active':'badge-neutral' %>" style="font-size:10px;"><%= d.status %></span></td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeDomain('<%= d.id %>')">✕</button></td>
+      </tr>
+      <%}%>
+      </tbody></table>
+      <%}%>
+    </div>
+  </div>
+
+  <!-- Add domain manually -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">Register a Domain Manually</span></div>
+    <div class="card-body" style="padding:16px;">
+      <form method="POST" action="/domains/add">
+        <div class="form-row">
+          <div class="form-group"><label>Domain Name *</label><input type="text" name="name" required placeholder="child.homedc.local"/></div>
+          <div class="form-group"><label>DNS Root</label><input type="text" name="dnsRoot" placeholder="child.homedc.local"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>NetBIOS Name</label><input type="text" name="netbios" placeholder="CHILD"/></div>
+          <div class="form-group"><label>Type</label>
+            <select name="type">
+              <option value="child">Child Domain</option>
+              <option value="tree">Tree Domain</option>
+              <option value="external-trust">External Trust</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;"><label>Domain Controller (optional)</label><input type="text" name="dc" placeholder="dc1.child.homedc.local"/></div>
+        <button type="submit" class="btn btn-primary" style="margin-top:10px;">Register Domain</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Trust relationships -->
+<div class="card">
+  <div class="card-header">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    <span class="card-title">Forest / Domain Trust Relationships</span>
+    <div class="card-header-actions"><button class="btn btn-secondary btn-sm" onclick="refreshTrusts()">Refresh</button></div>
+  </div>
+  <div class="card-body" id="trustsBody">
+    <% if(!trustData || trustData.error){%>
+    <div class="empty-state" style="padding:24px;"><p><%= trustData&&trustData.error ? trustData.error : 'No trust data available. Click Refresh to query Get-ADTrust.' %></p></div>
+    <%}else if(!trustData.trusts || !trustData.trusts.length){%>
+    <div class="empty-state" style="padding:24px;"><p>No trust relationships configured for this domain.</p></div>
+    <%}else{%>
+    <table><thead><tr><th>Name</th><th>Direction</th><th>Type</th><th>Forest Transitive</th><th>SID Filtering</th><th></th></tr></thead><tbody>
+    <% for(var ti=0;ti<trustData.trusts.length;ti++){var t=trustData.trusts[ti];%>
+    <tr>
+      <td style="font-size:12px;font-weight:500;"><%= t.name %></td>
+      <td><span class="badge badge-info" style="font-size:10px;"><%= t.direction %></span></td>
+      <td class="text-muted" style="font-size:11px;"><%= t.trustType %></td>
+      <td><span class="badge <%= t.isForest?'badge-active':'badge-neutral' %>" style="font-size:10px;"><%= t.isForest?'Yes':'No' %></span></td>
+      <td><span class="badge <%= t.sidFilteringQuarantined?'badge-active':'badge-neutral' %>" style="font-size:10px;"><%= t.sidFilteringQuarantined?'Enabled':'Disabled' %></span></td>
+      <td><button class="btn btn-secondary btn-sm" data-trust-name="<%= t.name %>" onclick="testTrust(this.getAttribute('data-trust-name'))">Test</button></td>
+    </tr>
+    <%}%>
+    </tbody></table>
+    <%}%>
+  </div>
+</div>
+
+</div>
+
+<script>
+function escapeHtmlDom(s){
+  var d=document.createElement('div');
+  d.textContent=String(s==null?'':s);
+  return d.innerHTML;
+}
+
+async function discoverForest(){
+  var btn=document.getElementById('discoverBtn');
+  btn.disabled=true; btn.textContent='Discovering...';
+  var area=document.getElementById('discoveryResults');
+  area.innerHTML='<div class="alert alert-info">Querying Get-ADForest and Get-ADDomain for each domain...</div>';
+  try{
+    var r=await fetch('/domains/discover',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    if(d.ok){
+      var html='<div class="card" style="margin-bottom:16px;"><div class="card-header"><span class="card-title">Forest: '+escapeHtmlDom(d.data.forestName)+' ('+escapeHtmlDom(d.data.forestMode)+')</span></div><div class="card-body"><table><thead><tr><th>Domain</th><th>NetBIOS</th><th>PDC Emulator</th><th>Mode</th><th></th></tr></thead><tbody></tbody></table></div></div>';
+      area.innerHTML=html;
+      var tbody=area.querySelector('tbody');
+      (d.data.domains||[]).forEach(function(dom){
+        var tr=document.createElement('tr');
+        tr.innerHTML='<td style="font-size:12px;font-weight:500;">'+escapeHtmlDom(dom.dnsRoot)+'</td>'+
+          '<td class="mono text-muted" style="font-size:11px;">'+escapeHtmlDom(dom.netbios||'—')+'</td>'+
+          '<td class="text-muted" style="font-size:11px;">'+escapeHtmlDom(dom.pdc||'—')+'</td>'+
+          '<td><span class="badge badge-neutral" style="font-size:10px;">'+escapeHtmlDom(dom.mode)+'</span></td>'+
+          '<td></td>';
+        var btn=document.createElement('button');
+        btn.className='btn btn-secondary btn-sm';
+        btn.textContent='Register';
+        btn.setAttribute('data-dns-root', dom.dnsRoot || '');
+        btn.setAttribute('data-netbios', dom.netbios || '');
+        btn.addEventListener('click', function(){ registerDiscovered(this.getAttribute('data-dns-root'), this.getAttribute('data-netbios')); });
+        tr.lastElementChild.appendChild(btn);
+        tbody.appendChild(tr);
+      });
+    } else {
+      area.innerHTML='<div class="alert alert-error">'+escapeHtmlDom(d.error)+'</div>';
+    }
+  }catch(e){
+    area.innerHTML='<div class="alert alert-error">Error: '+e.message+'</div>';
+  }
+  btn.disabled=false; btn.textContent='Discover Forest Domains';
+}
+
+function registerDiscovered(dnsRoot, netbios){
+  var form=document.createElement('form');
+  form.method='POST'; form.action='/domains/add';
+  [{n:'name',v:dnsRoot},{n:'dnsRoot',v:dnsRoot},{n:'netbios',v:netbios},{n:'type',v:'tree'}].forEach(function(f){
+    var i=document.createElement('input'); i.name=f.n; i.value=f.v; form.appendChild(i);
+  });
+  document.body.appendChild(form); form.submit();
+}
+
+async function removeDomain(id){
+  if(!confirm("Remove this domain from the registry? This does not affect the actual domain, only the console's record of it."))return;
+  var r=await fetch('/domains/'+id+'/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  var d=await r.json();
+  if(d.ok)location.reload();else alert(d.error);
+}
+
+async function refreshTrusts(){
+  var body=document.getElementById('trustsBody');
+  body.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);">Querying Get-ADTrust...</div>';
+  try{
+    var r=await fetch('/domains/trusts');
+    var d=await r.json();
+    if(d.ok && d.trusts && d.trusts.length){
+      body.innerHTML='<table><thead><tr><th>Name</th><th>Direction</th><th>Type</th><th>Forest Transitive</th><th>SID Filtering</th><th></th></tr></thead><tbody></tbody></table>';
+      var tbody2=body.querySelector('tbody');
+      d.trusts.forEach(function(t){
+        var tr=document.createElement('tr');
+        tr.innerHTML='<td style="font-size:12px;font-weight:500;">'+escapeHtmlDom(t.name)+'</td>'+
+          '<td><span class="badge badge-info" style="font-size:10px;">'+escapeHtmlDom(t.direction)+'</span></td>'+
+          '<td class="text-muted" style="font-size:11px;">'+escapeHtmlDom(t.trustType)+'</td>'+
+          '<td><span class="badge '+(t.isForest?'badge-active':'badge-neutral')+'" style="font-size:10px;">'+(t.isForest?'Yes':'No')+'</span></td>'+
+          '<td><span class="badge '+(t.sidFilteringQuarantined?'badge-active':'badge-neutral')+'" style="font-size:10px;">'+(t.sidFilteringQuarantined?'Enabled':'Disabled')+'</span></td>'+
+          '<td></td>';
+        var btn=document.createElement('button');
+        btn.className='btn btn-secondary btn-sm';
+        btn.textContent='Test';
+        btn.setAttribute('data-trust-name', t.name || '');
+        btn.addEventListener('click', function(){ testTrust(this.getAttribute('data-trust-name')); });
+        tr.lastElementChild.appendChild(btn);
+        tbody2.appendChild(tr);
+      });
+    } else if(d.ok){
+      body.innerHTML='<div class="empty-state" style="padding:24px;"><p>No trust relationships configured for this domain.</p></div>';
+    } else {
+      body.innerHTML='<div class="alert alert-error">'+d.error+'</div>';
+    }
+  }catch(e){
+    body.innerHTML='<div class="alert alert-error">Error: '+e.message+'</div>';
+  }
+}
+
+async function testTrust(name){
+  alert('Testing trust: '+name+'...');
+  try{
+    var r=await fetch('/domains/trusts/'+encodeURIComponent(name)+'/test',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    if(d.ok){
+      alert((d.healthy?'✓ Trust is healthy.\n\n':'⚠ Trust may have issues.\n\n')+d.output);
+    } else {
+      alert('Error testing trust: '+d.error);
+    }
+  }catch(e){alert('Error: '+e.message);}
+}
+</script>
+<%- include('../layout-end') %>

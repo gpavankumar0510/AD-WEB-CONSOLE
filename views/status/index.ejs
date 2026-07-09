@@ -1,0 +1,55 @@
+<%- include('../layout', { title: 'System Status', page: 'status', admin }) %>
+<div class="topbar"><div><div class="topbar-title">System Status</div><div class="topbar-sub">Console health and connectivity diagnostics</div></div></div>
+<div class="content">
+
+<div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+  <div class="stat-card <%= ldapOk?'success':'danger' %>">
+    <div class="stat-label">LDAP Connection</div>
+    <div class="stat-value" style="font-size:18px;"><%= ldapOk?'✅ Connected':'❌ Failed' %></div>
+    <div class="stat-sub"><%= cfg.host %>:<%= cfg.port %></div>
+  </div>
+  <div class="stat-card <%= adModuleOk?'success':'danger' %>">
+    <div class="stat-label">AD PowerShell Module</div>
+    <div class="stat-value" style="font-size:18px;"><%= adModuleOk?'✅ Available':'❌ Missing' %></div>
+    <div class="stat-sub">RSAT-AD-PowerShell</div>
+  </div>
+  <div class="stat-card info">
+    <div class="stat-label">Console Uptime</div>
+    <div class="stat-value" style="font-size:18px;"><%= Math.floor(uptimeSec/3600) %>h <%= Math.floor((uptimeSec%3600)/60) %>m</div>
+    <div class="stat-sub">Since last restart</div>
+  </div>
+  <div class="stat-card <%= parseFloat(diskFreeGB)>10?'success':'warning' %>">
+    <div class="stat-label">Disk Free (C:)</div>
+    <div class="stat-value" style="font-size:18px;"><%= diskFreeGB %> GB</div>
+    <div class="stat-sub">System drive</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Configuration</span></div>
+    <div class="card-body" style="padding:0 16px;">
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Domain</span><span class="mono" style="font-size:12px;"><%= cfg.domain %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">NetBIOS</span><span class="mono" style="font-size:12px;"><%= cfg.netbios %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Base DN</span><span class="mono" style="font-size:11px;word-break:break-all;"><%= cfg.baseDN %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">LDAP Host</span><span class="mono" style="font-size:12px;"><%= cfg.host %>:<%= cfg.port %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Service Account</span><span class="mono" style="font-size:11px;"><%= cfg.serviceAcct||'—' %></span></div>
+      <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Config Source</span><span class="badge badge-neutral"><%= cfg.source %></span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Runtime</span></div>
+    <div class="card-body" style="padding:0 16px;">
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Node.js</span><span class="mono" style="font-size:12px;"><%= nodeVersion %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">PowerShell</span><span class="mono" style="font-size:12px;"><%= psVersion %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Platform</span><span class="mono" style="font-size:11px;"><%= platform %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Heap Used</span><span class="mono" style="font-size:12px;"><%= (memUsage.heapUsed/1024/1024).toFixed(1) %> MB</span></div>
+      <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">RSS Memory</span><span class="mono" style="font-size:12px;"><%= (memUsage.rss/1024/1024).toFixed(1) %> MB</span></div>
+    </div>
+  </div>
+
+</div>
+</div>
+<%- include('../layout-end') %>

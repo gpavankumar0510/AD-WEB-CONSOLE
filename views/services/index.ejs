@@ -1,0 +1,43 @@
+<%- include('../layout', { title: 'AD Services', page: 'services', admin }) %>
+<div class="topbar"><div><div class="topbar-title">AD Services</div><div class="topbar-sub">Auto-detected Windows Server roles and services<% if(services){%> &mdash; Last scan: <%= new Date(services.scannedAt).toLocaleString() %><%}%></div></div><div class="topbar-actions"><button class="btn btn-primary" id="scanBtn" onclick="runScan()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Scan Services</button></div></div>
+<div class="content">
+<div id="scanAlert" style="display:none;" class="alert alert-info">Scanning installed services — takes 15-30 seconds...</div>
+<% if(!services){%>
+<div class="card"><div class="empty-state" style="padding:64px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:44px;height:44px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><p style="font-size:14px;color:var(--text2);margin-top:12px;">No scan data yet.</p><button class="btn btn-primary" style="margin-top:14px;" onclick="runScan()">Scan Now</button></div></div>
+<%}else{%>
+<div class="stat-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">
+  <div class="stat-card <%= services.dns&&services.dns.installed?'success':'' %>"><div class="stat-label">DNS</div><div class="stat-value" style="font-size:20px;"><%= services.dns&&services.dns.installed?'✅':'—' %></div><div class="stat-sub"><%= services.dns&&services.dns.installed?(services.dns.totalZones||0)+' zones':'Not installed' %></div></div>
+  <div class="stat-card <%= services.dhcp&&services.dhcp.installed?'success':'' %>"><div class="stat-label">DHCP</div><div class="stat-value" style="font-size:20px;"><%= services.dhcp&&services.dhcp.installed?'✅':'—' %></div><div class="stat-sub"><%= services.dhcp&&services.dhcp.installed?(services.dhcp.totalScopes||0)+' scopes':'Not installed' %></div></div>
+  <div class="stat-card <%= services.wsus&&services.wsus.installed?'success':'' %>"><div class="stat-label">WSUS</div><div class="stat-value" style="font-size:20px;"><%= services.wsus&&services.wsus.installed?'✅':'—' %></div><div class="stat-sub"><%= services.wsus&&services.wsus.installed?(services.wsus.running?'Running':'Stopped'):'Not installed' %></div></div>
+  <div class="stat-card <%= services.wds&&services.wds.installed?'success':'' %>"><div class="stat-label">WDS</div><div class="stat-value" style="font-size:20px;"><%= services.wds&&services.wds.installed?'✅':'—' %></div><div class="stat-sub"><%= services.wds&&services.wds.installed?(services.wds.running?'Running':'Stopped'):'Not installed' %></div></div>
+  <div class="stat-card <%= services.ca&&services.ca.installed?'success':'' %>"><div class="stat-label">CA</div><div class="stat-value" style="font-size:20px;"><%= services.ca&&services.ca.installed?'✅':'—' %></div><div class="stat-sub"><%= services.ca&&services.ca.installed?'Installed':'Not installed' %></div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+<% if(services.dns&&services.dns.installed&&services.dns.zones){var zones=Array.isArray(services.dns.zones)?services.dns.zones:[];%>
+<div class="card"><div class="card-header"><span class="card-title">DNS Zones (<%= services.dns.totalZones %>)</span></div><div class="card-body" style="max-height:220px;overflow-y:auto;">
+<table><thead><tr><th>Zone Name</th><th>Type</th><th>Integrated</th></tr></thead><tbody>
+<% for(var zi=0;zi<zones.length;zi++){var z=zones[zi];%><tr><td class="mono" style="font-size:11px;"><%= z.ZoneName||z.zoneName||'—' %></td><td><span class="badge badge-neutral" style="font-size:10px;"><%= z.ZoneType||z.zoneType||'—' %></span></td><td style="font-size:11px;color:var(--text3);"><%= (z.IsDsIntegrated||z.isDsIntegrated)?'AD-integrated':'File' %></td></tr><%}%>
+</tbody></table></div></div><%}%>
+<% if(services.dhcp&&services.dhcp.installed&&services.dhcp.scopes){var scopes=Array.isArray(services.dhcp.scopes)?services.dhcp.scopes:[];%>
+<div class="card"><div class="card-header"><span class="card-title">DHCP Scopes (<%= services.dhcp.totalScopes %>)</span></div><div class="card-body" style="max-height:220px;overflow-y:auto;">
+<table><thead><tr><th>Scope ID</th><th>Name</th><th>State</th></tr></thead><tbody>
+<% for(var sci=0;sci<scopes.length;sci++){var sc=scopes[sci];%><tr><td class="mono" style="font-size:11px;"><%= sc.ScopeId||sc.scopeId||'—' %></td><td style="font-size:12px;"><%= sc.Name||sc.name||'—' %></td><td><span class="badge <%= (sc.State||sc.state)==='Active'?'badge-active':'badge-disabled' %>" style="font-size:10px;"><%= sc.State||sc.state||'—' %></span></td></tr><%}%>
+</tbody></table></div></div><%}%>
+</div>
+<% if(services.fsmo&&Object.keys(services.fsmo).length){%>
+<div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title">FSMO Role Holders</span></div><div class="card-body" style="padding:0 16px;display:grid;grid-template-columns:repeat(5,1fr);">
+<% var fsmoRoles=['PDCEmulator','RIDMaster','InfrastructureMaster','SchemaMaster','DomainNamingMaster'];var fsmoLabels=['PDC Emulator','RID Master','Infrastructure','Schema Master','Domain Naming'];%>
+<% for(var fi=0;fi<fsmoRoles.length;fi++){%><div style="padding:12px 0;border-right:<%= fi<4?'1px solid var(--border)':'none' %>;padding-right:<%= fi<4?'12px':'0' %>;margin-right:<%= fi<4?'12px':'0' %>;"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;"><%= fsmoLabels[fi] %></div><div class="mono" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= services.fsmo[fsmoRoles[fi]]||'—' %>"><%= services.fsmo[fsmoRoles[fi]]||'—' %></div></div><%}%>
+</div></div><%}%>
+<% if(services.replication&&services.replication.checked){%>
+<div class="card" style="margin-bottom:14px;"><div class="card-header"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="<%= services.replication.healthy?'var(--success)':'var(--danger)' %>" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg><span class="card-title">AD Replication</span><span class="badge <%= services.replication.healthy?'badge-active':'badge-disabled' %>" style="margin-left:8px;"><%= services.replication.healthy?'Healthy':services.replication.failures+' failures' %></span></div><div class="card-body" style="padding:14px;display:flex;gap:24px;">
+<div><div style="font-size:11px;color:var(--text3);">Domain Controllers</div><div style="font-size:22px;font-weight:300;color:var(--info);"><%= services.replication.dcCount||'—' %></div></div>
+<div><div style="font-size:11px;color:var(--text3);">Replication Failures</div><div style="font-size:22px;font-weight:300;color:<%= services.replication.failures>0?'var(--danger)':'var(--success)' %>;"><%= services.replication.failures||0 %></div></div>
+</div></div><%}%>
+<% if(services.installedRoles&&services.installedRoles.length){%>
+<div class="card"><div class="card-header"><span class="card-title">Installed Roles/Features (<%= services.installedRoles.length %>)</span></div><div class="card-body" style="padding:12px;"><div style="display:flex;flex-wrap:wrap;gap:5px;"><% for(var ri=0;ri<services.installedRoles.length;ri++){var role=services.installedRoles[ri];%><span class="badge badge-neutral" style="font-size:11px;" title="<%= role.Description||'' %>"><%= role.DisplayName||role.Name %></span><%}%></div></div></div><%}%>
+<%}%></div>
+<script>
+async function runScan(){var btn=document.getElementById('scanBtn');var al=document.getElementById('scanAlert');btn.disabled=true;btn.textContent='Scanning...';al.style.display='flex';try{var r=await fetch('/services/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){location.reload();}else{al.className='alert alert-error';al.textContent='Scan error: '+d.error;btn.disabled=false;btn.textContent='Scan Services';}}catch(e){al.className='alert alert-error';al.textContent='Error: '+e.message;btn.disabled=false;btn.textContent='Scan Services';}}
+</script>
+<%- include('../layout-end') %>

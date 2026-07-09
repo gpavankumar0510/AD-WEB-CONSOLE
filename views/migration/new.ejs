@@ -1,0 +1,131 @@
+<%- include('../layout', { title: 'New Migration Job', page: 'migration', admin }) %>
+<div class="topbar"><div><div class="topbar-title">New Migration Job</div><div class="topbar-sub">Configure and launch a migration workflow</div></div><div class="topbar-actions"><a href="/migration" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!assessments.length){%><div class="alert alert-warning">No pre-migration assessment found. <a href="/migration/assess" style="color:var(--warning);text-decoration:underline;">Run an assessment first</a> to validate your environment.</div>
+<%}else{var la=assessments[0];%><div class="alert <%= la.readiness==='ready'?'alert-success':la.readiness==='ready-with-warnings'?'alert-warning':'alert-error' %>">Last assessment: <strong><%= la.readiness %></strong> — <%= la.errors %> error(s), <%= la.warnings %> warning(s) on <%= new Date(la.timestamp).toLocaleString() %></div><%}%>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+  <div class="card"><div class="card-header"><span class="card-title">Migration Configuration</span></div><div class="card-body" style="padding:18px;">
+    <form method="POST" action="/migration/new" id="migForm">
+      <div class="form-group"><label>Job Name *</label><input type="text" name="name" placeholder="DC Migration 2025" required/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Migration Scenario *</label><select name="scenario" id="scenarioSel" onchange="updateSteps()"><% for(var si=0;si<scenarios.length;si++){%><option value="<%= scenarios[si] %>"><%= scenarios[si] %></option><%}%></select></div>
+        <div class="form-group"><label>Target OS</label><select name="targetOS"><option value="2025">Windows Server 2025</option><option value="2022" selected>Windows Server 2022</option><option value="2019">Windows Server 2019</option><option value="2016">Windows Server 2016</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Source Server *</label>
+          <select name="sourceServer" id="sourceServerSel">
+            <option value="">Select source DC...</option>
+            <% for(var di=0;di<dcs.length;di++){var dc=dcs[di];%>
+            <option value="<%= dc.hostname||dc.name %>"><%= dc.name %> (<%= dc.os||'—' %>) <%= dc.ip?'- '+dc.ip:'' %></option>
+            <%}%>
+            <option value="__manual__">Other (enter manually)</option>
+          </select>
+          <input type="text" name="sourceServerManual" id="sourceServerManual" placeholder="Enter hostname manually" style="display:none;margin-top:6px;"/>
+          <span class="form-hint">Auto-detected from Active Directory (<%= dcs.length %> DC<%= dcs.length===1?'':'s' %> found)</span>
+        </div>
+        <div class="form-group">
+          <label>Target Server</label>
+          <select name="targetServer" id="targetServerSel">
+            <option value="">Select target DC (or leave blank for new)...</option>
+            <% for(var di2=0;di2<dcs.length;di2++){var dc2=dcs[di2];%>
+            <option value="<%= dc2.hostname||dc2.name %>"><%= dc2.name %> (<%= dc2.os||'—' %>) <%= dc2.ip?'- '+dc2.ip:'' %></option>
+            <%}%>
+            <option value="__manual__">Other (enter manually / new server)</option>
+          </select>
+          <input type="text" name="targetServerManual" id="targetServerManual" placeholder="Enter new server hostname" style="display:none;margin-top:6px;"/>
+          <span class="form-hint">Leave blank if promoting a brand-new DC</span>
+        </div>
+      </div>
+      <div class="form-group"><label>Backup Path</label><input type="text" name="backupPath" value="C:\MigrationBackup" placeholder="C:\MigrationBackup"/><span class="form-hint">Pre-migration backup destination</span></div>
+
+      <!-- Cloud Account Configuration - shown only for On-Premises to Cloud scenario -->
+      <div id="cloudConfigSection" style="display:none;border:1px solid var(--border2);border-radius:var(--radius);padding:14px;margin-top:10px;background:var(--surface2);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+          Cloud Account Configuration
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Cloud Provider</label>
+            <select name="cloudProvider">
+              <option value="azure-ad">Azure AD / Microsoft Entra ID</option>
+              <option value="aws-ds">AWS Directory Service</option>
+              <option value="gcp">Google Cloud Identity</option>
+              <option value="other">Other / Custom</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Tenant ID</label><input type="text" name="cloudTenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Application (Client) ID</label><input type="text" name="cloudClientId" placeholder="App registration client ID"/></div>
+          <div class="form-group"><label>Client Secret</label><input type="password" name="cloudClientSecret" placeholder="Stored encrypted, never displayed again" autocomplete="new-password"/></div>
+        </div>
+        <div class="form-group"><label>Primary Domain / UPN Suffix</label><input type="text" name="cloudDomain" placeholder="yourdomain.onmicrosoft.com"/></div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" name="cloudSyncPasswords" value="1"/> Enable password hash sync (hybrid identity)</label>
+        </div>
+        <div class="alert alert-info" style="margin-top:10px;margin-bottom:0;font-size:11px;">Credentials are stored in the job record for reference only. Actual directory sync requires Azure AD Connect (or equivalent) installed and configured separately on a sync server.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:8px;"><button type="submit" class="btn btn-primary">Create Migration Job</button><a href="/migration" class="btn btn-secondary">Cancel</a><button type="button" class="btn btn-secondary" onclick="refreshDCList()">↻ Refresh DC List</button></div>
+    </form>
+  </div></div>
+  <div class="card"><div class="card-header"><span class="card-title">Steps Preview</span></div><div class="card-body" style="padding:12px;" id="stepsPreview"><div id="stepsList"></div></div></div>
+</div></div>
+<script>
+var ALL_STEPS={'DC-to-DC':['Verify Prerequisites','Create Pre-Migration Backup','Run ADPrep Validation','Promote New DC','Wait for Replication','Transfer FSMO Roles','Validate New DC','Demote Old DC'],'P2V':['Verify Prerequisites','Full System Backup','Capture Disk Image','Convert to Virtual Disk','Validate VM','Cutover to VM'],'V2P':['Verify Prerequisites','VM Snapshot/Backup','Export Virtual Disk','Restore to Physical','Install Physical Drivers','Validate Physical DC'],'cloud':['Verify Prerequisites','Configure AD Connect','Initial Directory Sync','Validate Cloud Identity','DNS/MX Cutover','Cleanup On-Premises']};
+function updateSteps(){
+  var sc=document.getElementById('scenarioSel').value;
+  var steps=ALL_STEPS[sc]||[];
+  var html='';
+  for(var i=0;i<steps.length;i++){html+='<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);"><div style="width:20px;height:20px;border-radius:50%;background:var(--primary-glow);border:1px solid var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--primary);flex-shrink:0;">'+(i+1)+'</div><div style="font-size:12px;">'+steps[i]+'</div></div>';}
+  document.getElementById('stepsList').innerHTML=html;
+
+  var cloudSection=document.getElementById('cloudConfigSection');
+  if(cloudSection) cloudSection.style.display = (sc==='cloud') ? 'block' : 'none';
+}
+updateSteps();
+
+// Toggle manual input
+function setupManualToggle(selId,inputId){
+  var sel=document.getElementById(selId),inp=document.getElementById(inputId);
+  sel.addEventListener('change',function(){
+    if(sel.value==='__manual__'){inp.style.display='block';inp.required=true;sel.name='';inp.name=sel.getAttribute('data-name');}
+    else{inp.style.display='none';inp.required=false;inp.name='';sel.name=sel.getAttribute('data-name');}
+  });
+}
+document.getElementById('sourceServerSel').setAttribute('data-name','sourceServer');
+document.getElementById('targetServerSel').setAttribute('data-name','targetServer');
+document.getElementById('sourceServerManual').setAttribute('name','');
+document.getElementById('targetServerManual').setAttribute('name','');
+setupManualToggle('sourceServerSel','sourceServerManual');
+setupManualToggle('targetServerSel','targetServerManual');
+
+async function refreshDCList(){
+  var btn=event.target;btn.disabled=true;btn.textContent='Refreshing...';
+  try{
+    var r=await fetch('/migration/dcs');
+    var d=await r.json();
+    if(d.ok){
+      ['sourceServerSel','targetServerSel'].forEach(function(id){
+        var sel=document.getElementById(id);
+        var current=sel.value;
+        var firstOpt=sel.options[0].outerHTML;
+        var manualOpt='<option value="__manual__">Other (enter manually)</option>';
+        var html=firstOpt;
+        d.dcs.forEach(function(dc){
+          html+='<option value="'+(dc.hostname||dc.name)+'">'+dc.name+' ('+(dc.os||'—')+') '+(dc.ip?'- '+dc.ip:'')+'</option>';
+        });
+        html+=manualOpt;
+        sel.innerHTML=html;
+        sel.value=current;
+      });
+      alert('DC list refreshed: '+d.dcs.length+' controller(s) found.');
+    }else alert('Error: '+d.error);
+  }catch(e){alert('Error: '+e.message);}
+  btn.disabled=false;btn.textContent='↻ Refresh DC List';
+}
+</script>
+<%- include('../layout-end') %>

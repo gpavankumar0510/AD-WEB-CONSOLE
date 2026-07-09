@@ -1,0 +1,62 @@
+<%- include('../layout', { title: 'Users', page: 'users', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Users</div><div class="topbar-sub">Manage domain user accounts</div></div>
+  <div class="topbar-actions">
+    <div class="search-box" style="width:200px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" id="srch" placeholder="Search users..." oninput="filterUsers(this.value)"/></div>
+    <a href="/users/bulk-export" class="btn btn-secondary">Export CSV</a>
+    <a href="/users/bulk-import" class="btn btn-secondary">Bulk Import</a>
+    <a href="/users/create" class="btn btn-primary">New User</a>
+  </div>
+</div>
+<div class="content">
+<% if (created) { %><div class="alert alert-success">User created successfully.</div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="stat-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">
+  <div class="stat-card info"><div class="stat-label">Total</div><div class="stat-value"><%= users.length %></div></div>
+  <div class="stat-card success"><div class="stat-label">Active</div><div class="stat-value"><% var ac=0;users.forEach(function(u){if(!(parseInt(u.userAccountControl||0)&2)&&(!u.lockoutTime||u.lockoutTime==='0'))ac++;});%><%= ac %></div></div>
+  <div class="stat-card danger"><div class="stat-label">Locked</div><div class="stat-value"><% var lc=0;users.forEach(function(u){if(u.lockoutTime&&u.lockoutTime!=='0')lc++;});%><%= lc %></div></div>
+  <div class="stat-card warning"><div class="stat-label">Disabled</div><div class="stat-value"><% var dc=0;users.forEach(function(u){if(parseInt(u.userAccountControl||0)&2)dc++;});%><%= dc %></div></div>
+  <div class="stat-card"><div class="stat-label">Showing</div><div class="stat-value" id="visCount" style="color:var(--text)"><%= users.length %></div></div>
+</div>
+<div class="card"><div class="card-header"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="card-title">All Users</span></div>
+<div class="card-body">
+<% if (!users.length) { %><div class="empty-state"><p>No users found</p></div><% } else { %>
+<table id="userTable">
+<thead><tr><th>User</th><th>Username</th><th>Dept</th><th>OU</th><th>Groups</th><th>Last Pwd Change</th><th>Status</th><th>Actions</th></tr></thead>
+<tbody>
+<% for (var i=0;i<users.length;i++) {
+  var u=users[i];
+  var uac=parseInt(u.userAccountControl||0);
+  var isDisabled=!!(uac&2);
+  var isLocked=u.lockoutTime&&u.lockoutTime!=='0';
+  var dnParts=(u.distinguishedName||'').split(',');
+  var ouLabel='Default';
+  for(var di=1;di<dnParts.length;di++){if(dnParts[di].indexOf('OU=')===0||dnParts[di].indexOf('CN=')===0){ouLabel=dnParts[di].replace('OU=','').replace('CN=','');break;}}
+  var rawGroups=u.memberOf;var groupArr=Array.isArray(rawGroups)?rawGroups:(rawGroups?[rawGroups]:[]);
+  var groupNames=[];for(var gi=0;gi<groupArr.length&&gi<3;gi++)groupNames.push(groupArr[gi].split(',')[0].replace('CN=','').replace('cn=',''));
+  var pwdLastSet=parseInt(u.pwdLastSet||0);
+  var pwdDate=pwdLastSet>0?new Date(pwdLastSet/1e4-11644473600000).toLocaleDateString('en-GB'):'Never';
+  var searchStr=((u.displayName||'')+' '+(u.sAMAccountName||'')+' '+(u.department||'')+' '+ouLabel).toLowerCase();
+  var avatarColor=isLocked?'var(--warning)':isDisabled?'var(--danger)':'var(--primary)';
+  var avatarBg=isLocked?'var(--warning-bg)':isDisabled?'var(--danger-bg)':'var(--primary-glow)';
+%>
+<tr data-search="<%= searchStr %>">
+  <td><div style="display:flex;align-items:center;gap:7px;"><div style="width:28px;height:28px;border-radius:50%;background:<%= avatarBg %>;border:1px solid <%= avatarColor %>;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:<%= avatarColor %>;flex-shrink:0;"><%= ((u.displayName||u.sAMAccountName||'?').slice(0,2)).toUpperCase() %></div><div><a href="/users/<%= u.sAMAccountName %>" style="color:var(--text);font-weight:500;font-size:13px;"><%= u.displayName||u.sAMAccountName %></a><% if(u.title){%><div style="font-size:10px;color:var(--text3);"><%= u.title %></div><%}%></div></div></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= u.sAMAccountName %></td>
+  <td style="font-size:12px;color:var(--text2);"><%= u.department||'—' %></td>
+  <td><span class="badge badge-neutral" style="font-size:10px;" title="<%= u.distinguishedName %>"><%= ouLabel %></span></td>
+  <td><% if(!groupNames.length){%><span class="text-muted" style="font-size:11px;">None</span><%}else{%><div style="display:flex;flex-wrap:wrap;gap:2px;"><% for(var gni=0;gni<groupNames.length;gni++){%><span class="badge badge-info" style="font-size:10px;"><%= groupNames[gni] %></span><%}%><% if(groupArr.length>3){%><span class="badge badge-neutral" style="font-size:10px;">+<%= groupArr.length-3 %></span><%}%></div><%}%></td>
+  <td class="text-muted" style="font-size:11px;"><%= pwdDate %></td>
+  <td><% if(isLocked){%><span class="badge badge-locked">Locked</span><%}else if(isDisabled){%><span class="badge badge-disabled">Disabled</span><%}else{%><span class="badge badge-active">Active</span><%}%></td>
+  <td><div style="display:flex;gap:3px;"><a href="/users/<%= u.sAMAccountName %>" class="btn btn-secondary btn-sm">Edit</a><% if(isLocked){%><button class="btn btn-success btn-sm" onclick="doUnlock('<%= u.sAMAccountName %>')">Unlock</button><%}%><button class="btn btn-danger btn-sm" onclick="doDelete('<%= u.sAMAccountName %>')">Del</button></div></td>
+</tr>
+<% } %>
+</tbody></table><% } %>
+</div></div></div>
+<script>
+function filterUsers(q){var rows=document.querySelectorAll('#userTable tbody tr');var vis=0;rows.forEach(function(r){var show=!q||(r.dataset.search&&r.dataset.search.indexOf(q.toLowerCase())>=0);r.style.display=show?'':'none';if(show)vis++;});var vc=document.getElementById('visCount');if(vc)vc.textContent=vis;}
+async function doUnlock(u){if(!confirm('Unlock "'+u+'"?'))return;var r=await fetch('/users/'+u+'/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){toast('Unlocked','success');setTimeout(function(){location.reload();},1200);}else toast(d.error,'error');}
+async function doDelete(u){if(!confirm('Delete user "'+u+'"? Goes to Recycle Bin.'))return;var r=await fetch('/users/'+u+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){toast('User deleted','success');setTimeout(function(){location.reload();},1200);}else toast(d.error,'error');}
+function toast(msg,type){var t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);background:'+(type==='success'?'var(--success-bg)':'var(--danger-bg)')+';color:'+(type==='success'?'var(--success)':'var(--danger)')+';border:1px solid '+(type==='success'?'rgba(52,211,153,.4)':'rgba(248,113,113,.4)')+';';document.body.appendChild(t);setTimeout(function(){t.remove();},3000);}
+</script>
+<%- include('../layout-end') %>

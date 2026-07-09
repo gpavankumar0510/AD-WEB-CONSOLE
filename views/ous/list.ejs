@@ -1,0 +1,58 @@
+<%- include('../layout', { title: 'OUs', page: 'ous', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Organizational Units</div><div class="topbar-sub">Browse, create, delete OUs and move objects</div></div><div class="topbar-actions"><button class="btn btn-primary" onclick="showCreateOU()">New OU</button></div></div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+  <div class="card"><div class="card-header"><span class="card-title">OU Structure (<%= ous.length %>)</span></div><div class="card-body" style="padding:10px;max-height:480px;overflow-y:auto;">
+    <% if(!ous.length){%><div class="empty-state"><p>No OUs found</p></div><%}else{%>
+    <% for(var i=0;i<ous.length;i++){var ou=ous[i];var ouName=(ou.ou||ou.name||'').replace('OU=','').replace('CN=','')||ou.distinguishedName.split(',')[0].replace('OU=','').replace('CN=','');var isContainer=ou.distinguishedName&&ou.distinguishedName.indexOf('CN=')===0;var ouDN=ou.distinguishedName||'';%>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;margin-bottom:2px;background:var(--surface2);border:1px solid var(--border);">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="<%= isContainer?'var(--text3)':'var(--warning)' %>" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      <div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= ouName %></div><div class="mono" style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= ouDN %>"><%= ouDN %></div></div>
+      <div style="display:flex;gap:3px;flex-shrink:0;"><button class="btn btn-secondary btn-sm" style="font-size:10px;padding:2px 6px;" onclick="selectOU('<%= ouDN.replace(/'/g,String.fromCharCode(39)) %>')">Select</button><% if(!isContainer){%><button class="btn btn-danger btn-sm" style="font-size:10px;padding:2px 6px;" onclick="deleteOU('<%= ouDN.replace(/'/g,String.fromCharCode(39)) %>','<%= ouName.replace(/'/g,String.fromCharCode(39)) %>')">Del</button><%}%></div>
+    </div>
+    <%}%><%}%>
+  </div></div>
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card"><div class="card-header"><span class="card-title">Move Object</span></div><div class="card-body" style="padding:14px;">
+      <div class="form-group"><label>Object DN</label><input type="text" id="moveObjDn" placeholder="CN=user,CN=Users,DC=domain,DC=local"/></div>
+      <div class="form-group"><label>Target OU <span style="font-size:10px;color:var(--text3);">(click Select above)</span></label><input type="text" id="moveTargetOU" placeholder="OU=Finance,DC=domain,DC=local"/></div>
+      <button class="btn btn-primary btn-sm" onclick="moveObject()">Move Object</button>
+      <div id="moveResult" style="display:none;margin-top:10px;padding:8px;border-radius:6px;font-size:12px;"></div>
+    </div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Users per OU</span></div><div class="card-body" style="max-height:260px;overflow-y:auto;">
+      <%
+      var ouCounts={};
+      for(var ui=0;ui<users.length;ui++){var uDN=users[ui].distinguishedName||'';var uParts=uDN.split(',');var uOU='Root';for(var upi=1;upi<uParts.length;upi++){if(uParts[upi].indexOf('OU=')===0||uParts[upi].indexOf('CN=')===0){uOU=uParts[upi].replace('OU=','').replace('CN=','');break;}}if(!ouCounts[uOU])ouCounts[uOU]=0;ouCounts[uOU]++;}
+      var ouKeys=Object.keys(ouCounts).sort(function(a,b){return ouCounts[b]-ouCounts[a];});var maxC=ouKeys.length?ouCounts[ouKeys[0]]:1;
+      %>
+      <table><thead><tr><th>OU</th><th>Count</th><th style="width:100px;">Bar</th></tr></thead><tbody>
+      <% for(var oki=0;oki<ouKeys.length;oki++){var cnt=ouCounts[ouKeys[oki]];%>
+      <tr><td style="font-size:12px;"><%= ouKeys[oki] %></td><td style="font-size:12px;font-weight:500;"><%= cnt %></td><td><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--primary);border-radius:3px;width:<%= Math.round(cnt/maxC*100) %>%;"></div></div></td></tr>
+      <%}%></tbody></table>
+    </div></div>
+  </div>
+</div></div>
+
+<div class="modal-overlay" id="createOUModal"><div class="modal">
+  <div class="modal-header"><span class="modal-title">Create OU</span><button class="btn btn-secondary btn-sm" onclick="closeCreateOU()">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label>OU Name *</label><input type="text" id="newOUName" placeholder="Finance" required/></div>
+    <div class="form-group"><label>Parent OU</label><select id="newOUParent"><option value="">Root domain</option><% for(var pi=0;pi<ous.length;pi++){if(ous[pi].distinguishedName&&ous[pi].distinguishedName.indexOf('OU=')===0){%><option value="<%= ous[pi].distinguishedName %>"><%= ous[pi].distinguishedName %></option><%}}%></select></div>
+    <div class="form-group"><label>Description</label><input type="text" id="newOUDesc"/></div>
+    <div id="ouResult" style="display:none;padding:8px;border-radius:6px;font-size:12px;"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeCreateOU()">Cancel</button><button class="btn btn-primary" id="createOUBtn" onclick="createOU()">Create</button></div>
+</div></div>
+
+<script>
+function showCreateOU(){document.getElementById('newOUName').value='';document.getElementById('newOUDesc').value='';document.getElementById('ouResult').style.display='none';document.getElementById('createOUModal').classList.add('open');setTimeout(function(){document.getElementById('newOUName').focus();},100);}
+function closeCreateOU(){document.getElementById('createOUModal').classList.remove('open');}
+function selectOU(dn){document.getElementById('moveTargetOU').value=dn;}
+async function createOU(){var name=document.getElementById('newOUName').value.trim();if(!name){alert('Enter a name');return;}var parent=document.getElementById('newOUParent').value;var desc=document.getElementById('newOUDesc').value.trim();var btn=document.getElementById('createOUBtn');var res=document.getElementById('ouResult');btn.disabled=true;btn.textContent='Creating...';var r=await fetch('/ous/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,parent,description:desc})});var d=await r.json();res.style.display='block';if(d.ok){res.style.background='var(--success-bg)';res.style.color='var(--success)';res.style.border='1px solid rgba(52,211,153,.3)';res.textContent='Created: '+d.dn;setTimeout(function(){closeCreateOU();location.reload();},1500);}else{res.style.background='var(--danger-bg)';res.style.color='var(--danger)';res.style.border='1px solid rgba(248,113,113,.3)';res.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='Create';}}
+async function deleteOU(dn,name){if(!confirm('Delete OU "'+name+'"?\nMust be empty. Goes to Recycle Bin.'))return;var r=await fetch('/ous/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dn})});var d=await r.json();if(d.ok){alert('OU deleted');location.reload();}else alert('Error: '+d.error);}
+async function moveObject(){var dn=document.getElementById('moveObjDn').value.trim();var target=document.getElementById('moveTargetOU').value.trim();if(!dn||!target){alert('Enter both DN and Target OU');return;}var r=await fetch('/ous/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({objectDn:dn,targetOU:target})});var d=await r.json();var box=document.getElementById('moveResult');box.style.display='block';if(d.ok){box.style.background='var(--success-bg)';box.style.color='var(--success)';box.style.border='1px solid rgba(52,211,153,.3)';box.textContent='Moved successfully.';}else{box.style.background='var(--danger-bg)';box.style.color='var(--danger)';box.style.border='1px solid rgba(248,113,113,.3)';box.textContent='Error: '+d.error;}}
+document.getElementById('createOUModal').addEventListener('click',function(e){if(e.target===this)closeCreateOU();});
+</script>
+<%- include('../layout-end') %>

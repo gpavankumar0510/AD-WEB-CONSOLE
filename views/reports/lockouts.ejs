@@ -1,0 +1,30 @@
+<%- include('../layout', { title: 'Account Lockout Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Account Lockout Report</div><div class="topbar-sub"><%= lockedUsers.length %> currently locked accounts</div></div>
+<div class="topbar-actions"><a href="/reports/export/lockouts" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card" style="margin-bottom:14px;"><div class="card-header"><span class="card-title">Currently Locked Accounts (<%= lockedUsers.length %>)</span></div><div class="card-body">
+<% if(!lockedUsers.length){%><div class="empty-state" style="padding:24px;"><p>No locked accounts</p></div>
+<%}else{%>
+<table><thead><tr><th>User</th><th>Username</th></tr></thead><tbody>
+<% for(var i=0;i<lockedUsers.length;i++){var u=lockedUsers[i];%>
+<tr><td style="font-size:12px;font-weight:500;"><%= u.displayName||u.sAMAccountName %></td><td class="mono" style="font-size:11px;"><%= u.sAMAccountName %></td></tr>
+<%}%>
+</tbody></table><%}%>
+</div></div>
+<div class="card"><div class="card-header"><span class="card-title">Lockout / Unlock / IP Ban Events</span></div><div class="card-body">
+<% if(!logs.length){%><div class="empty-state" style="padding:24px;"><p>No lockout-related events recorded</p></div>
+<%}else{%>
+<table><thead><tr><th>Timestamp</th><th>Event</th><th>Target</th><th>By</th><th>IP</th></tr></thead><tbody>
+<% for(var i=0;i<logs.length;i++){var l=logs[i];%>
+<tr>
+  <td class="mono text-muted" style="font-size:10px;white-space:nowrap;"><%= new Date(l.ts).toLocaleString() %></td>
+  <td><span class="badge <%= l.action==='IP_BANNED'?'badge-disabled':'badge-active' %>"><%= l.action %></span></td>
+  <td style="font-size:12px;"><%= l.target||'—' %></td>
+  <td style="font-size:12px;"><%= l.actor||'—' %></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= l.ip||'—' %></td>
+</tr>
+<%}%>
+</tbody></table><%}%>
+</div></div></div>
+<%- include('../layout-end') %>

@@ -1,0 +1,144 @@
+<%- include('../layout', { title: 'Bulk User Import', page: 'users', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Bulk User Import</div><div class="topbar-sub">Import multiple users from CSV data</div></div>
+  <div class="topbar-actions"><a href="/users/bulk-export" class="btn btn-secondary">Export All Users (CSV)</a><a href="/users" class="btn btn-secondary">Back to Users</a></div>
+</div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<% if(results){%>
+<!-- Results -->
+<% var created=results.filter(function(r){return r.status==='created';}).length;
+   var failed=results.filter(function(r){return r.status==='failed';}).length;
+   var skipped=results.filter(function(r){return r.status==='skipped';}).length; %>
+<div class="alert <%= failed>0?'alert-warning':'alert-success' %>" style="margin-bottom:16px;">
+  Import complete — <strong><%= created %> created</strong>, <%= failed %> failed, <%= skipped %> skipped
+</div>
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header"><span class="card-title">Import Results (<%= results.length %> rows)</span>
+    <a href="/users/bulk-import" class="btn btn-primary btn-sm" style="margin-left:auto;">Import Another Batch</a>
+  </div>
+  <div class="card-body">
+    <table><thead><tr><th>Username</th><th>Status</th><th>Detail</th></tr></thead><tbody>
+    <% results.forEach(function(r){%>
+    <tr>
+      <td class="mono" style="font-size:12px;"><%= r.username %></td>
+      <td><span class="badge <%= r.status==='created'?'badge-active':r.status==='skipped'?'badge-neutral':'badge-disabled' %>"><%= r.status %></span></td>
+      <td class="text-muted" style="font-size:11px;"><%= r.error||'—' %></td>
+    </tr>
+    <%});%>
+    </tbody></table>
+  </div>
+</div>
+<%}else{%>
+
+<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:16px;">
+
+  <!-- Instructions + template -->
+  <div>
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-header"><span class="card-title">CSV Format</span></div>
+      <div class="card-body" style="padding:16px;">
+        <div class="alert alert-info" style="margin-bottom:12px;">Required columns: <code>username</code>, <code>password</code></div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Optional: <code>firstname</code>, <code>lastname</code>, <code>email</code>, <code>department</code>, <code>title</code>, <code>ou</code></div>
+        <pre style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;color:var(--text2);overflow-x:auto;">username,password,firstname,lastname,email,department,title
+jsmith,Pass@word1,John,Smith,jsmith@domain.local,IT,Engineer
+mjones,Pass@word2,Mary,Jones,mjones@domain.local,HR,Manager
+tbrown,Pass@word3,Tom,Brown,tbrown@domain.local,Finance,Analyst</pre>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="pasteTemplate()">Paste Template into Form</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Notes</span></div>
+      <div class="card-body" style="padding:14px;">
+        <ul style="font-size:12px;color:var(--text3);margin:0;padding-left:18px;line-height:1.8;">
+          <li>Delimiter: comma or semicolon (auto-detected)</li>
+          <li>Passwords must meet domain password policy</li>
+          <li>The <code>ou</code> column accepts a full DN<br>e.g. <code>OU=Staff,DC=homedc,DC=local</code></li>
+          <li>If <code>ou</code> is blank, the default OU below is used</li>
+          <li>Rows with duplicate usernames will fail (not overwrite)</li>
+          <li>Max recommended batch: 500 users</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import form -->
+  <div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Import Users</span></div>
+      <div class="card-body" style="padding:16px;">
+        <form method="POST" action="/users/bulk-import" id="importForm">
+          <div class="form-group">
+            <label>Default Target OU</label>
+            <select name="targetOU">
+              <option value="">— Users default container —</option>
+              <% ous.forEach(function(ou){%>
+              <option value="<%= ou.dn %>"><%= ou.name %> (<%= ou.dn %>)</option>
+              <%});%>
+            </select>
+            <span class="form-hint">Applied when a row doesn't specify its own OU</span>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;justify-content:space-between;">
+              <span>CSV Data</span>
+              <span style="font-size:11px;color:var(--text3);" id="rowCount"></span>
+            </label>
+            <textarea name="csvData" id="csvData" rows="14" placeholder="Paste your CSV here, or click 'Paste Template' on the left..." style="resize:vertical;font-family:var(--mono);font-size:12px;" oninput="countRows(this)"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="submit" class="btn btn-primary" id="importBtn" onclick="return confirmImport()">Import Users</button>
+            <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+            <label class="btn btn-secondary" style="cursor:pointer;margin:0;">
+              Upload CSV File
+              <input type="file" accept=".csv,.txt" style="display:none;" onchange="readCSVFile(this)">
+            </label>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+<%}%>
+</div>
+
+<script>
+var TEMPLATE = 'username,password,firstname,lastname,email,department,title\njsmith,Pass@word1,John,Smith,jsmith@domain.local,IT,Engineer\nmjones,Pass@word2,Mary,Jones,mjones@domain.local,HR,Manager';
+
+function pasteTemplate(){
+  document.getElementById('csvData').value = TEMPLATE;
+  countRows(document.getElementById('csvData'));
+}
+
+function countRows(ta){
+  var lines = ta.value.split('\n').filter(function(l){return l.trim();});
+  var dataRows = Math.max(0, lines.length - 1);
+  document.getElementById('rowCount').textContent = dataRows > 0 ? dataRows + ' user(s) to import' : '';
+}
+
+function clearForm(){
+  document.getElementById('csvData').value = '';
+  document.getElementById('rowCount').textContent = '';
+}
+
+function readCSVFile(input){
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    document.getElementById('csvData').value = e.target.result;
+    countRows(document.getElementById('csvData'));
+  };
+  reader.readAsText(file);
+}
+
+function confirmImport(){
+  var lines = document.getElementById('csvData').value.split('\n').filter(function(l){return l.trim();});
+  var count = Math.max(0, lines.length - 1);
+  if (count === 0) { alert('Please enter CSV data first.'); return false; }
+  return confirm('Import ' + count + ' user(s) into Active Directory?\n\nThis will create real AD accounts.');
+}
+</script>
+<%- include('../layout-end') %>

@@ -1,0 +1,26 @@
+<%- include('../layout', { title: 'Security Compliance', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Security Compliance (SCAP)</div><div class="topbar-sub">Active Directory security scoring</div></div>
+<div class="topbar-actions"><a href="/reports/export/security-compliance" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(scap){%>
+<% var gradeColor=scap.grade==='A'?'var(--success)':scap.grade==='B'?'var(--primary)':scap.grade==='C'?'var(--warning)':'var(--danger)';%>
+<div style="background:var(--surface);border:2px solid <%= gradeColor %>;border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;display:flex;align-items:center;gap:20px;">
+  <div style="font-size:64px;font-weight:200;color:<%= gradeColor %>;font-family:var(--mono);"><%= scap.grade %></div>
+  <div><div style="font-size:22px;font-weight:700;color:<%= gradeColor %>"><%= scap.percent %>% Security Score</div><div style="font-size:13px;color:var(--text2);margin-top:4px;"><%= scap.score %> out of <%= scap.total %> points</div></div>
+</div>
+<div class="card"><div class="card-header"><span class="card-title">Security Checks (<%= (scap.checks||[]).length %>)</span></div><div class="card-body">
+<table><thead><tr><th>Check</th><th>Result</th><th>Detail</th><th>Recommendation</th></tr></thead><tbody>
+<% var checks=scap.checks||[];for(var i=0;i<checks.length;i++){var c=checks[i];%>
+<tr>
+  <td style="font-size:13px;font-weight:500;"><%= c.name %></td>
+  <td><span class="badge <%= c.pass?'badge-active':'badge-disabled' %>"><%= c.pass?'PASS':'FAIL' %></span></td>
+  <td style="font-size:12px;"><%= c.detail %></td>
+  <td style="font-size:11px;color:var(--text3);"><%= c.pass?'—':c.detail %></td>
+</tr>
+<%}%>
+</tbody></table>
+</div></div>
+<%}else{%><div class="alert alert-warning">SCAP score not available. Ensure Active Directory module is accessible.</div><%}%>
+</div>
+<%- include('../layout-end') %>

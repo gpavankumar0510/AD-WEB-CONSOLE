@@ -1,0 +1,36 @@
+<%- include('../layout', { title: group.sAMAccountName, page: 'groups', admin }) %>
+<% var memberArr=Array.isArray(members)?members:(members?[members]:[]);var isSec=parseInt(group.groupType||0)<0;var groupDN=typeof group.dn==='string'?group.dn:(group.dn?group.dn.toString():(group.distinguishedName||'')); %>
+<div class="topbar"><div><div class="topbar-title"><%= group.sAMAccountName %></div><div class="topbar-sub mono" style="font-size:10px;color:var(--text3);"><%= groupDN %></div></div><div class="topbar-actions"><button class="btn btn-danger" onclick="delGroup()">Delete Group</button><a href="/groups" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div style="display:grid;grid-template-columns:1fr 300px;gap:14px;">
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card"><div class="card-header"><span class="card-title">Edit Group</span></div><div class="card-body" style="padding:16px;">
+    <form method="POST" action="/groups/<%= group.sAMAccountName %>/edit">
+      <div class="form-row"><div class="form-group"><label>Display Name</label><input type="text" name="displayName" value="<%= group.displayName||'' %>"/></div><div class="form-group"><label>Description</label><input type="text" name="description" value="<%= group.description||'' %>"/></div></div>
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+    </form></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Members (<%= memberArr.length %>)</span><div class="card-header-actions"><select id="addMSel" style="width:200px;font-size:12px;padding:5px 8px;"><option value="">Add member...</option><% for(var ui=0;ui<allUsers.length;ui++){%><option value="<%= allUsers[ui].distinguishedName||allUsers[ui].dn %>"><%= allUsers[ui].sAMAccountName %> — <%= allUsers[ui].displayName||'' %></option><%}%></select><button class="btn btn-success btn-sm" onclick="addMember()">Add</button></div></div>
+    <div class="card-body" style="max-height:280px;overflow-y:auto;">
+      <% if(!memberArr.length){%><div class="empty-state" style="padding:16px;"><p>No members</p></div><%}else{%>
+      <table><thead><tr><th>Member</th><th></th></tr></thead><tbody>
+      <% for(var mi=0;mi<memberArr.length;mi++){var m=memberArr[mi];var mCN=m.split(',')[0].replace('CN=','').replace('cn=','');%>
+      <tr><td style="font-size:13px;font-weight:500;"><%= mCN %></td><td><button class="btn btn-danger btn-sm" onclick="removeMember('<%= m.replace(/'/g,String.fromCharCode(39)) %>')">Remove</button></td></tr>
+      <%}%></tbody></table><%}%>
+    </div></div>
+  </div>
+  <div class="card"><div class="card-header"><span class="card-title">Group Info</span></div><div class="card-body" style="padding:0 16px;">
+    <div class="settings-row"><span class="text-muted" style="font-size:12px;">SAM Name</span><span class="mono" style="font-size:12px;"><%= group.sAMAccountName %></span></div>
+    <div class="settings-row"><span class="text-muted" style="font-size:12px;">Type</span><span class="badge <%= isSec?'badge-info':'badge-neutral' %>"><%= isSec?'Security':'Distribution' %></span></div>
+    <div class="settings-row"><span class="text-muted" style="font-size:12px;">Members</span><span style="font-size:12px;"><%= memberArr.length %></span></div>
+    <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Created</span><span style="font-size:12px;"><%= group.whenCreated?new Date(group.whenCreated).toLocaleDateString('en-GB'):'—' %></span></div>
+  </div></div>
+</div></div>
+<script>
+var groupName='<%= group.sAMAccountName %>';
+async function addMember(){var sel=document.getElementById('addMSel');if(!sel.value){alert('Select a member');return;}var r=await fetch('/groups/'+encodeURIComponent(groupName)+'/add-member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({memberDn:sel.value})});var d=await r.json();if(d.ok)location.reload();else alert(d.error);}
+async function removeMember(dn){if(!confirm('Remove this member?'))return;var r=await fetch('/groups/'+encodeURIComponent(groupName)+'/remove-member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({memberDn:dn})});var d=await r.json();if(d.ok)location.reload();else alert(d.error);}
+async function delGroup(){if(!confirm('Delete group "'+groupName+'"? Goes to Recycle Bin.'))return;var r=await fetch('/groups/'+encodeURIComponent(groupName)+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok)window.location='/groups';else alert(d.error);}
+</script>
+<%- include('../layout-end') %>

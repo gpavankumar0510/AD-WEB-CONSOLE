@@ -1,0 +1,239 @@
+<%- include('../layout', { title: 'Backup', page: 'backup', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Backup & Restore</div><div class="topbar-sub">AD State, System State and SYSVOL backups</div></div>
+  <div class="topbar-actions"><a href="/reports/backup" class="btn btn-secondary">Backup Report</a></div>
+</div>
+<div class="content">
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+
+  <!-- Run Backup -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <span class="card-title">Run Backup Now</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div class="form-group">
+        <label>Backup Type</label>
+        <select id="bkType">
+          <option value="AD-State">AD State (ntdsutil IFM) — recommended</option>
+          <option value="System-State">System State (wbadmin)</option>
+          <option value="SYSVOL">SYSVOL Only (robocopy)</option>
+          <option value="Full-Server">Full Server Backup (wbadmin)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Destination Type</label>
+        <select id="bkDestType" onchange="onDestTypeChange()">
+          <option value="local">Local Disk</option>
+          <option value="network">Network Share (UNC)</option>
+          <option value="cloud">Cloud Storage (mapped path)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Destination Path</label>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="bkDest" value="<%= s.backupDestination||'C:\\ADBackups' %>" placeholder="C:\ADBackups or \\server\share" style="flex:1;"/>
+          <button type="button" class="btn btn-secondary" onclick="openBrowser('bkDest')">Browse</button>
+        </div>
+        <span class="form-hint" id="destHint">Local path on this server</span>
+      </div>
+      <button class="btn btn-primary" onclick="startBackup()">▶ Start Backup</button>
+      <div id="bkResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>
+    </div>
+  </div>
+
+  <!-- Restore Backup -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+      <span class="card-title">Restore from Backup</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div class="alert alert-warning" style="margin-bottom:12px;">Restore operations are destructive. Always verify the backup before restoring.</div>
+      <div class="form-group">
+        <label>Backup Source Path</label>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="restorePath" value="<%= s.backupDestination||'C:\\ADBackups' %>" placeholder="C:\ADBackups" style="flex:1;"/>
+          <button type="button" class="btn btn-secondary" onclick="openBrowser('restorePath')">Browse</button>
+        </div>
+      </div>
+      <button class="btn btn-warning" onclick="checkRestore()">Check Backup Versions</button>
+      <div id="restoreResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;font-family:var(--mono);white-space:pre-wrap;max-height:150px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Schedule info -->
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-header"><span class="card-title">Backup Schedule</span><div class="card-header-actions"><a href="/settings" class="btn btn-secondary btn-sm">Edit Schedule</a></div></div>
+  <div class="card-body" style="padding:0 16px;display:grid;grid-template-columns:repeat(4,1fr);">
+    <div style="padding:12px 0;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Schedule</div><div class="mono" style="font-size:12px;"><%= s.backupSchedule||'0 2 * * *' %></div></div>
+    <div style="padding:12px 14px;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Type</div><div style="font-size:12px;"><%= s.backupType||'daily' %></div></div>
+    <div style="padding:12px 14px;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Destination</div><div class="mono" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= s.backupDestination||'C:\\ADBackups' %></div></div>
+    <div style="padding:12px 14px;"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Retention</div><div style="font-size:12px;"><%= s.backupRetentionDays||30 %> days</div></div>
+  </div>
+</div>
+
+<!-- History -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Backup History (<%= history.length %>)</span>
+  </div>
+  <div class="card-body">
+    <% if(!history.length){%><div class="empty-state" style="padding:32px;"><p>No backup history yet</p></div>
+    <%}else{%>
+    <table><thead><tr><th>Type</th><th>Status</th><th>Encrypted</th><th>Destination</th><th>Started</th><th>Completed</th></tr></thead><tbody>
+    <% for(var i=0;i<history.length;i++){var b=history[i];%>
+    <tr>
+      <td class="mono" style="font-size:11px;"><%= b.type %></td>
+      <td><span class="badge <%= b.status==='completed'?'badge-active':b.status==='running'?'badge-info':'badge-disabled' %>"><%= b.status %></span></td>
+      <td><% if(b.encrypted){%><span class="badge badge-purple" style="font-size:10px;">🔒 AES-256</span><%}else{%><span class="text-muted" style="font-size:11px;">—</span><%}%></td>
+      <td class="mono text-muted" style="font-size:10px;"><%= b.destination||'—' %></td>
+      <td class="text-muted" style="font-size:11px;"><%= new Date(b.timestamp).toLocaleString() %></td>
+      <td class="text-muted" style="font-size:11px;"><%= b.completedAt?new Date(b.completedAt).toLocaleString():'In progress...' %></td>
+    </tr>
+    <%}%>
+    </tbody></table><%}%>
+  </div>
+</div>
+</div>
+
+<!-- Folder Browser Modal -->
+<div id="folderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;width:520px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.5);">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:14px;font-weight:600;">Select Backup Folder</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeBrowser()">✕</button>
+    </div>
+    <div style="padding:10px 18px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="driveSelect" onchange="navigateTo(this.value)" style="width:90px;"></select>
+        <input type="text" id="currentPathDisplay" readonly class="mono" style="flex:1;font-size:11px;background:var(--surface2);"/>
+      </div>
+    </div>
+    <div id="folderList" style="flex:1;overflow-y:auto;padding:8px;min-height:200px;"></div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;">
+      <input type="text" id="newFolderName" placeholder="New folder name" style="flex:1;font-size:12px;"/>
+      <button class="btn btn-secondary btn-sm" onclick="createNewFolder()">+ Create</button>
+      <button class="btn btn-primary btn-sm" onclick="selectCurrentFolder()">Select This Folder</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var browserTargetInput = null;
+var browserCurrentPath = 'C:\\';
+
+function onDestTypeChange(){
+  var type=document.getElementById('bkDestType').value;
+  var hint=document.getElementById('destHint');
+  var input=document.getElementById('bkDest');
+  if(type==='network'){hint.textContent='UNC path, e.g. \\\\server\\share\\backups';input.placeholder='\\\\server\\share\\backups';}
+  else if(type==='cloud'){hint.textContent='Path to a mapped cloud drive (OneDrive, Azure File Sync, rclone mount, etc.)';input.placeholder='C:\\CloudSync\\ADBackups';}
+  else {hint.textContent='Local path on this server';input.placeholder='C:\\ADBackups';}
+}
+
+async function openBrowser(targetInputId){
+  browserTargetInput = document.getElementById(targetInputId);
+  document.getElementById('folderModal').style.display='flex';
+  var current = browserTargetInput.value || 'C:\\';
+  // If UNC path, can't browse server-side filesystem the same way - start at C:\
+  if(current.indexOf('\\\\\\\\')===0 || current.indexOf('\\\\\\\\\\\\\\\\')===0) current = 'C:\\';
+  await loadDrives();
+  await navigateTo(current);
+}
+function closeBrowser(){ document.getElementById('folderModal').style.display='none'; }
+
+async function loadDrives(){
+  try{
+    var r=await fetch('/backup/drives');
+    var d=await r.json();
+    var sel=document.getElementById('driveSelect');
+    sel.innerHTML='';
+    (d.drives||['C:\\']).forEach(function(drv){
+      var opt=document.createElement('option');opt.value=drv;opt.textContent=drv;sel.appendChild(opt);
+    });
+  }catch(e){}
+}
+
+function makeFolderRow(label, targetPath, icon){
+  var row=document.createElement('div');
+  row.className='folder-item';
+  row.style.cssText='padding:8px 10px;cursor:pointer;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:8px;';
+  row.textContent=(icon||'\ud83d\udcc1')+' '+label;
+  row.addEventListener('mouseover',function(){row.style.background='var(--surface2)';});
+  row.addEventListener('mouseout',function(){row.style.background='';});
+  row.addEventListener('click',function(){ navigateTo(targetPath); });
+  return row;
+}
+
+async function navigateTo(p){
+  try{
+    var r=await fetch('/backup/browse?path='+encodeURIComponent(p));
+    var d=await r.json();
+    if(!d.ok){alert(d.error);return;}
+    browserCurrentPath=d.path;
+    document.getElementById('currentPathDisplay').value=d.path;
+    var list=document.getElementById('folderList');
+    list.innerHTML='';
+
+    if(d.parent){
+      list.appendChild(makeFolderRow('.. (parent)', d.parent));
+    }
+    if(d.dirs && d.dirs.length){
+      d.dirs.forEach(function(dir){
+        var sep = d.path.charAt(d.path.length-1)==='\\' ? '' : '\\';
+        var full = d.path + sep + dir;
+        list.appendChild(makeFolderRow(dir, full));
+      });
+    } else {
+      var empty=document.createElement('div');
+      empty.style.cssText='padding:16px;text-align:center;color:var(--text3);font-size:12px;';
+      empty.textContent='No subfolders';
+      list.appendChild(empty);
+    }
+  }catch(e){alert('Error: '+e.message);}
+}
+
+async function createNewFolder(){
+  var name=document.getElementById('newFolderName').value.trim();
+  if(!name)return;
+  var sep = browserCurrentPath.charAt(browserCurrentPath.length-1)==='\\' ? '' : '\\';
+  var full = browserCurrentPath + sep + name;
+  var r=await fetch('/backup/create-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:full})});
+  var d=await r.json();
+  if(d.ok){document.getElementById('newFolderName').value='';await navigateTo(full);}
+  else alert('Error: '+d.error);
+}
+
+function selectCurrentFolder(){
+  if(browserTargetInput) browserTargetInput.value=browserCurrentPath;
+  closeBrowser();
+}
+
+async function startBackup(){
+  var type=document.getElementById('bkType').value;
+  var dest=document.getElementById('bkDest').value;
+  var res2=document.getElementById('bkResult');
+  res2.style.display='block'; res2.style.background='var(--info-bg)'; res2.style.color='var(--info)'; res2.style.border='1px solid rgba(96,165,250,.3)';
+  res2.textContent='Starting backup...';
+  var r=await fetch('/backup/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,destination:dest})});
+  var d=await r.json();
+  if(d.ok){res2.style.background='var(--success-bg)';res2.style.color='var(--success)';res2.style.border='1px solid rgba(16,185,129,.3)';res2.textContent=d.message;setTimeout(function(){location.reload();},5000);}
+  else{res2.style.background='var(--danger-bg)';res2.style.color='var(--danger)';res2.style.border='1px solid rgba(239,68,68,.3)';res2.textContent='Error: '+d.error;}
+}
+async function checkRestore(){
+  var src=document.getElementById('restorePath').value;
+  var res2=document.getElementById('restoreResult');
+  res2.style.display='block'; res2.style.background='var(--surface2)'; res2.style.color='var(--text2)'; res2.style.border='1px solid var(--border)';
+  res2.textContent='Checking backup versions...';
+  var r=await fetch('/backup/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backupPath:src})});
+  var d=await r.json();
+  if(d.ok){res2.style.background='var(--success-bg)';res2.style.color='var(--success)';res2.style.border='1px solid rgba(16,185,129,.3)';res2.textContent=d.message;}
+  else{res2.style.background='var(--danger-bg)';res2.style.color='var(--danger)';res2.style.border='1px solid rgba(239,68,68,.3)';res2.textContent='Error: '+d.error;}
+}
+</script>
+<%- include('../layout-end') %>

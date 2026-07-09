@@ -1,0 +1,37 @@
+<%- include('../layout', { title: 'Computers', page: 'computers', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Computers</div><div class="topbar-sub">Domain-joined computer accounts</div></div><div class="topbar-actions"><div class="search-box" style="width:180px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" placeholder="Search..." oninput="filterComps(this.value)"/></div></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% var tc=computers.length,ac=0,dc2=0,sc=0;computers.forEach(function(c){if(c.isDisabled)dc2++;else ac++;if(c.isStale)sc++;});%>
+<div class="stat-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">
+  <div class="stat-card info"><div class="stat-label">Total</div><div class="stat-value"><%= tc %></div></div>
+  <div class="stat-card success"><div class="stat-label">Active</div><div class="stat-value"><%= ac %></div></div>
+  <div class="stat-card warning"><div class="stat-label">Disabled</div><div class="stat-value"><%= dc2 %></div></div>
+  <div class="stat-card danger"><div class="stat-label">Stale</div><div class="stat-value"><%= sc %></div><div class="stat-sub">90+ days</div></div>
+  <div class="stat-card"><div class="stat-label">Showing</div><div class="stat-value" id="visCount" style="color:var(--text)"><%= tc %></div></div>
+</div>
+<div class="card"><div class="card-header"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span class="card-title">All Computers</span></div><div class="card-body">
+<% if(!computers.length){%><div class="empty-state"><p>No computers found</p></div><%}else{%>
+<table id="compTable"><thead><tr><th>Name</th><th>OS</th><th>OU</th><th>Last Logon</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+<% for(var i=0;i<computers.length;i++){var c=computers[i];var dnParts=(c.distinguishedName||'').split(',');var ouLabel='Default';for(var di=1;di<dnParts.length;di++){if(dnParts[di].indexOf('OU=')===0||dnParts[di].indexOf('CN=')===0){ouLabel=dnParts[di].replace('OU=','').replace('CN=','');break;}}var searchStr=((c.cn||'')+' '+(c.dNSHostName||'')+' '+(c.operatingSystem||'')+' '+ouLabel).toLowerCase();%>
+<tr data-search="<%= searchStr %>">
+  <td><div style="display:flex;align-items:center;gap:7px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="<%= c.isStale?'var(--warning)':c.isDisabled?'var(--danger)':'var(--text3)' %>" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><div><div class="mono" style="font-size:12px;font-weight:500;"><%= c.cn %></div><% if(c.isStale){%><div style="font-size:10px;color:var(--warning);">Stale</div><%}%></div></div></td>
+  <td style="font-size:12px;"><%= c.operatingSystem||'—' %></td>
+  <td><span class="badge badge-neutral" style="font-size:10px;" title="<%= c.distinguishedName %>"><%= ouLabel %></span></td>
+  <td class="text-muted" style="font-size:11px;"><%= c.lastLogonDate %></td>
+  <td><% if(c.isDisabled){%><span class="badge badge-disabled">Disabled</span><%}else if(c.isStale){%><span class="badge badge-locked">Stale</span><%}else{%><span class="badge badge-active">Active</span><%}%></td>
+  <td><div style="display:flex;gap:3px;"><% if(c.isDisabled){%><button class="btn btn-success btn-sm" onclick="doAction('<%= c.cn %>','enable')">Enable</button><%}else{%><button class="btn btn-warning btn-sm" onclick="doAction('<%= c.cn %>','disable')">Disable</button><%}%><button class="btn btn-secondary btn-sm" onclick="showMove('<%= c.cn %>')">Move</button><button class="btn btn-danger btn-sm" onclick="doAction('<%= c.cn %>','delete')">Del</button></div></td>
+</tr><%}%></tbody></table><%}%></div></div></div>
+
+<div class="modal-overlay" id="moveModal"><div class="modal"><div class="modal-header"><span class="modal-title">Move Computer</span><button class="btn btn-secondary btn-sm" onclick="closeMove()">✕</button></div><div class="modal-body"><div class="form-group"><label>Target OU (full DN)</label><input type="text" id="moveTarget" placeholder="OU=Servers,DC=domain,DC=local"/></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeMove()">Cancel</button><button class="btn btn-primary" onclick="confirmMove()">Move</button></div></div></div>
+
+<script>
+var movingCN='';
+function filterComps(q){var rows=document.querySelectorAll('#compTable tbody tr');var vis=0;rows.forEach(function(r){var show=!q||(r.dataset.search&&r.dataset.search.indexOf(q.toLowerCase())>=0);r.style.display=show?'':'none';if(show)vis++;});var vc=document.getElementById('visCount');if(vc)vc.textContent=vis;}
+async function doAction(cn,action){if(!confirm(action+' computer "'+cn+'"?'))return;var r=await fetch('/computers/'+encodeURIComponent(cn)+'/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){location.reload();}else alert(d.error);}
+function showMove(cn){movingCN=cn;document.getElementById('moveTarget').value='';document.getElementById('moveModal').classList.add('open');}
+function closeMove(){document.getElementById('moveModal').classList.remove('open');}
+async function confirmMove(){var target=document.getElementById('moveTarget').value.trim();if(!target){alert('Enter target OU');return;}var r=await fetch('/computers/'+encodeURIComponent(movingCN)+'/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetOU:target})});var d=await r.json();closeMove();if(d.ok)location.reload();else alert(d.error);}
+document.getElementById('moveModal').addEventListener('click',function(e){if(e.target===this)closeMove();});
+</script>
+<%- include('../layout-end') %>

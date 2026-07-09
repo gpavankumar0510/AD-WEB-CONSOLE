@@ -1,0 +1,16 @@
+<%- include('../layout', { title: 'Create Group', page: 'groups', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Create Group</div></div><div class="topbar-actions"><a href="/groups" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card" style="max-width:560px;"><div class="card-header"><span class="card-title">New Group</span></div><div class="card-body" style="padding:18px;">
+<form method="POST" action="/groups/create">
+  <div class="form-row"><div class="form-group"><label>Group Name *</label><input type="text" name="name" required autofocus placeholder="IT-Helpdesk"/></div><div class="form-group"><label>SAM Account Name *</label><input type="text" name="samName" required placeholder="IT-Helpdesk"/></div></div>
+  <div class="form-group"><label>Display Name</label><input type="text" name="displayName" placeholder="IT Helpdesk Team"/></div>
+  <div class="form-group"><label>Description</label><input type="text" name="description" placeholder="Optional description"/></div>
+  <div class="form-row">
+    <div class="form-group"><label>Group Type</label><select name="groupType"><option value="-2147483646">Global Security</option><option value="-2147483644">Domain Local Security</option><option value="-2147483640">Universal Security</option><option value="2">Global Distribution</option></select></div>
+    <div class="form-group"><label>Organizational Unit</label><select name="ou"><option value="">Default (CN=Users)</option><% for(var i=0;i<ous.length;i++){%><option value="<%= ous[i].distinguishedName %>"><%= ous[i].distinguishedName %></option><%}%></select></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:8px;"><button type="submit" class="btn btn-primary">Create Group</button><a href="/groups" class="btn btn-secondary">Cancel</a></div>
+</form></div></div></div>
+<%- include('../layout-end') %>

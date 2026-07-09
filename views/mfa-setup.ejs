@@ -1,0 +1,61 @@
+<%- include('./layout', { title: 'Set Up MFA', page: 'myaccount', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Set Up Two-Factor Authentication</div><div class="topbar-sub">Secure your account with an authenticator app</div></div></div>
+<div class="content">
+<% if(required){%>
+<div class="alert alert-warning">Your organization requires MFA. Please complete setup to continue.</div>
+<%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:800px;">
+  <div class="card animate-slide">
+    <div class="card-header"><span class="card-title">Step 1: Scan QR Code</span></div>
+    <div class="card-body" style="padding:20px;text-align:center;">
+      <div id="qrcode" style="display:inline-block;background:#fff;padding:12px;border-radius:8px;margin-bottom:14px;"></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Scan with Google Authenticator, Microsoft Authenticator, Authy, or any TOTP app.</div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--text2);">
+        <%= secret %>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;">Manual entry key (if you can't scan)</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card animate-slide" style="animation-delay:.05s;">
+      <div class="card-header"><span class="card-title">Step 2: Verify Code</span></div>
+      <div class="card-body" style="padding:20px;">
+        <form method="POST" action="/mfa-setup<%= required?'?required=1':'' %>">
+          <div class="form-group">
+            <label>Enter the 6-digit code from your app</label>
+            <input type="text" name="token" maxlength="6" pattern="[0-9]{6}" placeholder="000000" autofocus required style="font-family:var(--mono);font-size:20px;text-align:center;letter-spacing:.3em;"/>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">Enable MFA</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card animate-slide" style="animation-delay:.1s;">
+      <div class="card-header"><span class="card-title">Backup Codes</span></div>
+      <div class="card-body" style="padding:20px;">
+        <div class="alert alert-warning" style="margin-bottom:12px;font-size:11px;">Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:13px;">
+          <% for(var i=0;i<backupCodes.length;i++){%>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 10px;text-align:center;"><%= backupCodes[i] %></div>
+          <%}%>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+new QRCode(document.getElementById("qrcode"), {
+  text: "<%= otpUri %>",
+  width: 180,
+  height: 180,
+  colorDark: "#000000",
+  colorLight: "#ffffff",
+});
+</script>
+<%- include('./layout-end') %>

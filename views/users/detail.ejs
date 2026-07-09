@@ -1,0 +1,106 @@
+<%- include('../layout', { title: user.displayName || user.sAMAccountName, page: 'users', admin }) %>
+<%
+var uac=parseInt(user.userAccountControl||0);
+var isDisabled=!!(uac&2);
+var isLocked=user.lockoutTime&&user.lockoutTime!=='0';
+var memberOf=Array.isArray(user.memberOf)?user.memberOf:(user.memberOf?[user.memberOf]:[]);
+var userDN=typeof user.dn==='string'?user.dn:(user.dn?user.dn.toString():(user.distinguishedName||''));
+var pwdLastSet=parseInt(user.pwdLastSet||0);
+var pwdDate=pwdLastSet>0?new Date(pwdLastSet/1e4-11644473600000).toLocaleString():'Never';
+%>
+<div class="topbar">
+  <div><div class="topbar-title"><%= user.displayName||user.sAMAccountName %></div><div class="topbar-sub mono" style="font-size:10px;color:var(--text3);"><%= userDN %></div></div>
+  <div class="topbar-actions">
+    <% if(isLocked){%><button class="btn btn-success" onclick="doUnlock()">Unlock</button><%}%>
+    <button class="btn btn-secondary" onclick="toggleStatus()"><%= isDisabled?'Enable':'Disable' %></button>
+    <button class="btn btn-danger" onclick="doDelete()">Delete</button>
+    <a href="/users" class="btn btn-secondary">Back</a>
+  </div>
+</div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(isLocked){%><div class="alert alert-warning">Account is <strong>locked out</strong>. Click Unlock to restore access.</div><%}%>
+<% if(isDisabled){%><div class="alert alert-warning">Account is <strong>disabled</strong>.</div><%}%>
+<div style="display:grid;grid-template-columns:1fr 320px;gap:14px;">
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card"><div class="card-header"><span class="card-title">Edit Details</span><span class="badge <%= isLocked?'badge-locked':isDisabled?'badge-disabled':'badge-active' %>" style="margin-left:auto;"><%= isLocked?'Locked':isDisabled?'Disabled':'Active' %></span></div>
+    <div class="card-body" style="padding:18px;"><form method="POST" action="/users/<%= user.sAMAccountName %>/edit">
+      <div class="form-row"><div class="form-group"><label>Display Name</label><input type="text" name="displayName" value="<%= user.displayName||'' %>"/></div><div class="form-group"><label>Email</label><input type="email" name="mail" value="<%= user.mail||'' %>"/></div></div>
+      <div class="form-row"><div class="form-group"><label>Phone</label><input type="text" name="telephoneNumber" value="<%= user.telephoneNumber||'' %>"/></div><div class="form-group"><label>Department</label><input type="text" name="department" value="<%= user.department||'' %>"/></div></div>
+      <div class="form-row"><div class="form-group"><label>Job Title</label><input type="text" name="title" value="<%= user.title||'' %>"/></div><div class="form-group"><label>Description</label><input type="text" name="description" value="<%= user.description||'' %>"/></div></div>
+      <div style="display:flex;gap:8px;"><button type="submit" class="btn btn-primary">Save Changes</button></div>
+    </form></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Groups (<%= memberOf.length %>)</span><div class="card-header-actions"><select id="addGrpSel" style="width:180px;font-size:12px;padding:5px 8px;"><option value="">Add to group...</option><% for(var gi=0;gi<groups.length;gi++){%><option value="<%= groups[gi].distinguishedName %>"><%= groups[gi].sAMAccountName %></option><%}%></select><button class="btn btn-success btn-sm" onclick="addToGroup()">Add</button></div></div>
+    <div class="card-body" style="max-height:180px;overflow-y:auto;">
+      <% if(!memberOf.length){%><div class="empty-state" style="padding:16px;"><p>No group memberships</p></div>
+      <%}else{%><table><thead><tr><th>Group Name</th></tr></thead><tbody><% for(var mi=0;mi<memberOf.length;mi++){var g=memberOf[mi];var gCN=g.split(',')[0].replace('CN=','').replace('cn=','');%><tr><td style="font-size:13px;font-weight:500;"><%= gCN %></td></tr><%}%></tbody></table><%}%>
+    </div></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card"><div class="card-header"><span class="card-title">Account Info</span></div><div class="card-body" style="padding:0 16px;">
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Username</span><span class="mono" style="font-size:12px;"><%= user.sAMAccountName %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">UPN</span><span class="mono" style="font-size:11px;"><%= user.userPrincipalName||'—' %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Created</span><span style="font-size:12px;"><%= user.whenCreated?new Date(user.whenCreated).toLocaleDateString('en-GB'):'—' %></span></div>
+      <div class="settings-row"><span class="text-muted" style="font-size:12px;">Last Pwd Change</span><span style="font-size:12px;"><%= pwdDate %></span></div>
+      <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">UAC</span><span class="mono" style="font-size:11px;"><%= user.userAccountControl %></span></div>
+    </div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Reset Password</span></div><div class="card-body" style="padding:14px;">
+      <div class="form-group"><label>New Password</label><input type="password" id="newPw" placeholder="New password" autocomplete="new-password"/>
+        <div class="pwd-strength"><div class="pwd-strength-bar" id="resetPwBar"></div></div>
+        <div class="pwd-strength-label" id="resetPwLabel"></div>
+      </div>
+      <div id="pwResult" style="display:none;padding:8px;border-radius:6px;font-size:12px;margin-bottom:10px;"></div>
+      <button class="btn btn-warning" style="width:100%;" onclick="doResetPw()">Reset Password</button>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Must meet complexity: 8+ chars, upper, lower, number, symbol.</div>
+    </div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Move to OU</span></div><div class="card-body" style="padding:14px;">
+      <div class="form-group"><select id="moveOUSel"><option value="">Select OU...</option><% for(var oi=0;oi<ous.length;oi++){%><option value="<%= ous[oi].distinguishedName %>"><%= ous[oi].distinguishedName %></option><%}%></select></div>
+      <button class="btn btn-secondary" style="width:100%;" onclick="moveUser()">Move User</button>
+    </div></div>
+  </div>
+</div></div>
+<script>
+var username='<%= user.sAMAccountName %>';
+async function doUnlock(){if(!confirm('Unlock account?'))return;var r=await fetch('/users/'+username+'/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){alert('Unlocked');location.reload();}else alert(d.error);}
+async function doResetPw(){var pw=document.getElementById('newPw').value;var res=document.getElementById('pwResult');if(!pw){showBox(res,'Enter a password','error');return;}if(!confirm('Reset password for '+username+'?'))return;var r=await fetch('/users/'+username+'/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});var d=await r.json();if(d.ok){showBox(res,d.message||'Password reset.','success');document.getElementById('newPw').value='';}else showBox(res,d.error,'error');}
+function showBox(el,msg,type){el.style.display='block';el.style.background=type==='success'?'var(--success-bg)':'var(--danger-bg)';el.style.color=type==='success'?'var(--success)':'var(--danger)';el.style.border='1px solid '+(type==='success'?'rgba(52,211,153,.3)':'rgba(248,113,113,.3)');el.textContent=msg;}
+async function toggleStatus(){var action='<%= isDisabled?"enable":"disable" %>';if(!confirm(action+' account?'))return;var r=await fetch('/users/'+username+'/toggle-status',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){alert('Account '+d.newStatus);location.reload();}else alert(d.error);}
+async function addToGroup(){var sel=document.getElementById('addGrpSel');if(!sel.value){alert('Select a group');return;}var r=await fetch('/users/'+username+'/add-group',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupDn:sel.value})});var d=await r.json();if(d.ok){location.reload();}else alert(d.error);}
+async function moveUser(){var sel=document.getElementById('moveOUSel');if(!sel.value){alert('Select an OU');return;}if(!confirm('Move '+username+' to '+sel.value+'?'))return;var r=await fetch('/users/'+username+'/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetOU:sel.value})});var d=await r.json();if(d.ok){alert('Moved');location.reload();}else alert(d.error);}
+async function doDelete(){if(!confirm('Delete "'+username+'"? Goes to Recycle Bin.'))return;var r=await fetch('/users/'+username+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){window.location='/users';}else alert(d.error);}
+</script>
+
+<style>
+.pwd-strength{height:4px;background:var(--border2);border-radius:2px;overflow:hidden;margin-top:6px;}
+.pwd-strength-bar{height:100%;width:0%;transition:width .3s,background .3s;border-radius:2px;}
+.pwd-strength-label{font-size:10px;margin-top:3px;color:var(--text3);}
+</style>
+<script>
+function attachPwdStrength(inputId, barId, labelId){
+  var inp=document.getElementById(inputId), bar=document.getElementById(barId), label=document.getElementById(labelId);
+  if(!inp||!bar)return;
+  inp.addEventListener('input',function(){
+    var pw=inp.value;
+    var score=0;
+    score+=Math.min(pw.length*4,40);
+    if(/[a-z]/.test(pw))score+=10;
+    if(/[A-Z]/.test(pw))score+=10;
+    if(/[0-9]/.test(pw))score+=10;
+    if(/[^a-zA-Z0-9]/.test(pw))score+=15;
+    if(pw.length>=12)score+=10;
+    if(pw.length>=16)score+=5;
+    score=Math.min(score,100);
+    bar.style.width=score+'%';
+    var color=score<30?'var(--danger)':score<60?'var(--warning)':score<85?'var(--info)':'var(--success)';
+    bar.style.background=color;
+    if(label){
+      var text=score<30?'Weak':score<60?'Fair':score<85?'Good':'Strong';
+      label.textContent=pw?text+' password':'';
+      label.style.color=color;
+    }
+  });
+}
+</script>
+<script>attachPwdStrength('newPw','resetPwBar','resetPwLabel');</script>
+<%- include('../layout-end') %>

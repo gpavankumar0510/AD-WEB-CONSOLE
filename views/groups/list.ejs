@@ -1,0 +1,20 @@
+<%- include('../layout', { title: 'Groups', page: 'groups', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Groups</div><div class="topbar-sub">Security and distribution groups</div></div><div class="topbar-actions"><div class="search-box" style="width:180px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" placeholder="Search..." oninput="filterGroups(this.value)"/></div><a href="/groups/create" class="btn btn-primary">New Group</a></div></div>
+<div class="content">
+<% if(created){%><div class="alert alert-success">Group created.</div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card"><div class="card-header"><span class="card-title">All Groups (<%= groups.length %>)</span></div><div class="card-body">
+<% if(!groups.length){%><div class="empty-state"><p>No groups found</p></div><%}else{%>
+<table id="grpTable"><thead><tr><th>Group Name</th><th>Type</th><th>Members</th><th>Description</th><th>Actions</th></tr></thead><tbody>
+<% for(var i=0;i<groups.length;i++){var g=groups[i];var isSec=parseInt(g.groupType||0)<0;var members=Array.isArray(g.member)?g.member:(g.member?[g.member]:[]);var searchStr=((g.sAMAccountName||'')+' '+(g.displayName||'')+' '+(g.description||'')).toLowerCase();%>
+<tr data-search="<%= searchStr %>"><td><a href="/groups/<%= g.sAMAccountName %>" style="color:var(--text);font-weight:500;font-size:13px;"><%= g.sAMAccountName %></a><% if(g.displayName&&g.displayName!==g.sAMAccountName){%><div style="font-size:11px;color:var(--text3);"><%= g.displayName %></div><%}%></td>
+<td><span class="badge <%= isSec?'badge-info':'badge-neutral' %>" style="font-size:10px;"><%= isSec?'Security':'Distribution' %></span></td>
+<td class="text-muted" style="font-size:12px;"><%= members.length %></td>
+<td class="text-muted" style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= g.description||'—' %></td>
+<td><div style="display:flex;gap:3px;"><a href="/groups/<%= g.sAMAccountName %>" class="btn btn-secondary btn-sm">Manage</a><button class="btn btn-danger btn-sm" onclick="delGroup('<%= g.sAMAccountName %>')">Del</button></div></td></tr>
+<%}%></tbody></table><%}%></div></div></div>
+<script>
+function filterGroups(q){document.querySelectorAll('#grpTable tbody tr').forEach(function(r){r.style.display=!q||(r.dataset.search&&r.dataset.search.indexOf(q.toLowerCase())>=0)?'':'none';});}
+async function delGroup(n){if(!confirm('Delete group "'+n+'"? Goes to Recycle Bin.'))return;var r=await fetch('/groups/'+encodeURIComponent(n)+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok)location.reload();else alert(d.error);}
+</script>
+<%- include('../layout-end') %>

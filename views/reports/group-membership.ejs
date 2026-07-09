@@ -1,0 +1,18 @@
+<%- include('../layout', { title: 'Group Membership', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Group Membership Report</div><div class="topbar-sub"><%= groups.length %> groups</div></div>
+<div class="topbar-actions"><a href="/reports/export/group-membership" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card"><div class="card-body">
+<table><thead><tr><th>Group Name</th><th>Type</th><th>Members</th><th>Description</th></tr></thead><tbody>
+<% for(var i=0;i<groups.length;i++){var g=groups[i];var isSec=parseInt(g.groupType||0)<0;var mems=Array.isArray(g.member)?g.member:(g.member?[g.member]:[]);%>
+<tr>
+  <td style="font-weight:500;font-size:13px;"><a href="/groups/<%= g.sAMAccountName %>" style="color:var(--text);"><%= g.sAMAccountName %></a></td>
+  <td><span class="badge <%= isSec?'badge-info':'badge-neutral' %>" style="font-size:10px;"><%= isSec?'Security':'Distribution' %></span></td>
+  <td style="font-size:12px;font-weight:500;"><%= mems.length %> member(s)</td>
+  <td class="text-muted" style="font-size:12px;"><%= g.description||'—' %></td>
+</tr>
+<%}%>
+</tbody></table>
+</div></div></div>
+<%- include('../layout-end') %>

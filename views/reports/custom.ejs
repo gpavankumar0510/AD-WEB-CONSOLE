@@ -1,0 +1,48 @@
+<%- include('../layout', { title: 'Custom Report Builder', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Custom Report Builder</div><div class="topbar-sub">Build a filtered report from available data sources</div></div>
+<div class="topbar-actions"><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card" style="margin-bottom:14px;"><div class="card-body" style="padding:16px;">
+<form method="POST" action="/reports/custom">
+  <div class="form-row">
+    <div class="form-group"><label>Data Source</label>
+      <select name="source">
+        <option value="audit" <%= typeof source!=='undefined'&&source==='audit'?'selected':'' %>>Audit Log</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Filter Field</label>
+      <select name="filterField">
+        <option value="">No filter</option>
+        <option value="action" <%= typeof filterField!=='undefined'&&filterField==='action'?'selected':'' %>>Action</option>
+        <option value="actor" <%= typeof filterField!=='undefined'&&filterField==='actor'?'selected':'' %>>Actor</option>
+        <option value="target" <%= typeof filterField!=='undefined'&&filterField==='target'?'selected':'' %>>Target</option>
+        <option value="ip" <%= typeof filterField!=='undefined'&&filterField==='ip'?'selected':'' %>>IP Address</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Filter Value</label><input type="text" name="filterValue" value="<%= typeof filterValue!=='undefined'?filterValue:'' %>" placeholder="e.g. USER_CREATED"/></div>
+  </div>
+  <button type="submit" class="btn btn-primary">Generate Report</button>
+</form>
+</div></div>
+
+<% if(result){%>
+<div class="card"><div class="card-header"><span class="card-title">Results (<%= result.length %>)</span></div><div class="card-body">
+<% if(!result.length){%><div class="empty-state" style="padding:24px;"><p>No matching records found</p></div>
+<%}else{%>
+<table><thead><tr><th>Timestamp</th><th>Action</th><th>Actor</th><th>Target</th><th>IP</th></tr></thead><tbody>
+<% for(var i=0;i<result.length&&i<500;i++){var r=result[i];%>
+<tr>
+  <td class="mono text-muted" style="font-size:10px;"><%= new Date(r.ts).toLocaleString() %></td>
+  <td style="font-size:12px;font-weight:500;"><%= r.action %></td>
+  <td style="font-size:12px;"><%= r.actor||'—' %></td>
+  <td style="font-size:12px;"><%= r.target||'—' %></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= r.ip||'—' %></td>
+</tr>
+<%}%>
+</tbody></table>
+<%}%>
+</div></div>
+<%}%>
+</div>
+<%- include('../layout-end') %>

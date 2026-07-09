@@ -1,0 +1,24 @@
+<%- include('../layout', { title: 'AD Health Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Active Directory Health Report</div><div class="topbar-sub">Latest pre-migration assessment results</div></div>
+<div class="topbar-actions"><a href="/reports/export/ad-health" class="btn btn-primary">Export CSV</a><a href="/migration/assess" class="btn btn-secondary">Run New Assessment</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!latest){%>
+<div class="empty-state" style="padding:32px;"><p>No assessment has been run yet.</p></div>
+<%}else{%>
+<div class="alert <%= latest.readiness==='ready'?'alert-success':latest.readiness==='ready-with-warnings'?'alert-warning':'alert-error' %>">Readiness: <strong><%= latest.readiness %></strong> — <%= latest.errors %> error(s), <%= latest.warnings %> warning(s) — scanned <%= new Date(latest.timestamp).toLocaleString() %></div>
+<div class="card"><div class="card-body">
+<table><thead><tr><th>Check</th><th>Category</th><th>Result</th><th>Message</th></tr></thead><tbody>
+<% for(var i=0;i<(latest.checks||[]).length;i++){var c=latest.checks[i];%>
+<tr>
+  <td style="font-size:12px;font-weight:500;"><%= c.name %></td>
+  <td><span class="badge badge-neutral" style="font-size:10px;"><%= c.category %></span></td>
+  <td><span class="badge <%= c.passed?'badge-active':c.severity==='error'?'badge-disabled':'badge-warned' %>"><%= c.passed?'PASS':c.severity.toUpperCase() %></span></td>
+  <td class="text-muted" style="font-size:11px;"><%= c.message %></td>
+</tr>
+<%}%>
+</tbody></table>
+</div></div>
+<%}%>
+</div>
+<%- include('../layout-end') %>

@@ -1,0 +1,29 @@
+<%- include('../layout', { title: 'Group Policies', page: 'gpo', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Group Policies</div><div class="topbar-sub">Manage and link GPOs<% if(lastSync){%> &mdash; Last sync: <%= new Date(lastSync).toLocaleString() %><%}%></div></div><div class="topbar-actions"><button class="btn btn-warning" onclick="syncFromAD(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Sync from AD</button><a href="/gpo/templates" class="btn btn-secondary">Templates</a><a href="/gpo/backup" class="btn btn-secondary">Backup &amp; Restore</a><a href="/gpo/create" class="btn btn-primary">New Policy</a></div></div>
+<div class="content">
+<div id="syncAlert" style="display:none;" class="alert alert-info">Syncing GPOs from Active Directory...</div>
+<div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px;">
+  <div class="stat-card info"><div class="stat-label">Total</div><div class="stat-value"><%= policies.length %></div></div>
+  <div class="stat-card success"><div class="stat-label">Active</div><div class="stat-value"><% var ac2=0;policies.forEach(function(p){if(p.status==='Active')ac2++;});%><%= ac2 %></div></div>
+  <div class="stat-card"><div class="stat-label">Links</div><div class="stat-value" style="color:var(--text)"><%= links.length %></div></div>
+  <div class="stat-card warning"><div class="stat-label">Unlinked</div><div class="stat-value"><% var ul=0;policies.forEach(function(p){var hasL=links.some(function(l){return l.policyId===p.id;});if(!hasL)ul++;});%><%= ul %></div></div>
+</div>
+<div class="card"><div class="card-header"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="card-title">All Policies</span></div><div class="card-body">
+<% if(!policies.length){%><div class="empty-state" style="padding:48px;"><p>No policies yet. Click <strong>Sync from AD</strong> to import Windows GPOs.</p><button class="btn btn-warning btn-sm" style="margin-top:12px;" onclick="syncFromAD(this)">Sync from AD</button></div>
+<%}else{%><table><thead><tr><th>Policy Name</th><th>Category</th><th>Settings</th><th>Links</th><th>Status</th><th>Source</th><th>Actions</th></tr></thead><tbody>
+<% for(var i=0;i<policies.length;i++){var p=policies[i];var pLinks=links.filter(function(l){return l.policyId===p.id;});%>
+<tr>
+  <td><a href="/gpo/<%= p.id %>" style="color:var(--text);font-weight:500;font-size:13px;"><%= p.name %></a><% if(p.description){%><div style="font-size:11px;color:var(--text3);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= p.description %></div><%}%></td>
+  <td><span class="badge badge-neutral" style="font-size:10px;"><%= p.category||'Custom' %></span></td>
+  <td class="text-muted" style="font-size:12px;"><%= (p.settings||[]).length %></td>
+  <td><% if(!pLinks.length){%><span class="text-muted" style="font-size:11px;">None</span><%}else{%><div style="display:flex;flex-wrap:wrap;gap:2px;"><% for(var pli=0;pli<Math.min(pLinks.length,2);pli++){%><span class="badge badge-active" style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= pLinks[pli].target %>"><%= pLinks[pli].targetType %>: <%= pLinks[pli].target.length>18?pLinks[pli].target.slice(0,18)+'...':pLinks[pli].target %></span><%}%><% if(pLinks.length>2){%><span class="badge badge-neutral" style="font-size:10px;">+<%= pLinks.length-2 %></span><%}%></div><%}%></td>
+  <td><span class="badge <%= p.status==='Active'?'badge-active':'badge-disabled' %>"><%= p.status||'Active' %></span></td>
+  <td><% if(p.adGpoId){%><span class="badge badge-info" style="font-size:10px;">AD</span><%}else if(p.templateId){%><span class="badge badge-neutral" style="font-size:10px;">Template</span><%}else{%><span class="badge badge-neutral" style="font-size:10px;">Custom</span><%}%></td>
+  <td><div style="display:flex;gap:3px;"><a href="/gpo/<%= p.id %>" class="btn btn-secondary btn-sm">Edit</a><button class="btn btn-danger btn-sm" onclick="delPolicy('<%= p.id %>','<%= p.name.replace(/'/g,String.fromCharCode(39)) %>')">Del</button></div></td>
+</tr>
+<%}%></tbody></table><%}%></div></div></div>
+<script>
+async function syncFromAD(btn){var al=document.getElementById('syncAlert');al.style.display='flex';al.textContent='Syncing GPOs from Active Directory...';if(btn){btn.disabled=true;btn.textContent='Syncing...';}try{var r=await fetch('/gpo/sync-from-ad',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){al.className='alert alert-success';al.textContent=d.message;setTimeout(function(){location.reload();},2000);}else{al.className='alert alert-error';al.textContent='Error: '+d.error;if(btn){btn.disabled=false;btn.textContent='Sync from AD';}}}catch(e){al.className='alert alert-error';al.textContent='Error: '+e.message;if(btn){btn.disabled=false;btn.textContent='Sync from AD';}}}
+async function delPolicy(id,name){if(!confirm('Delete policy "'+name+'"?\nThis also removes it from Windows AD GPMC.'))return;var form=document.createElement('form');form.method='POST';form.action='/gpo/'+id+'/delete';document.body.appendChild(form);form.submit();}
+</script>
+<%- include('../layout-end') %>

@@ -1,0 +1,135 @@
+<%- include('../layout', { title: 'Integrations', page: 'integrations', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Enterprise Integrations</div><div class="topbar-sub">Connect external systems for unified visibility</div></div>
+</div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+  <!-- Azure AD / Entra ID -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+      <span class="card-title">Azure AD / Microsoft Entra ID</span>
+      <span class="badge <%= cfg.azureAD.status==='connected'?'badge-active':cfg.azureAD.status==='error'?'badge-disabled':'badge-neutral' %>" style="margin-left:auto;font-size:10px;"><%= cfg.azureAD.status %></span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <form method="POST" action="/integrations/azure-ad/save">
+        <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="margin-bottom:0;">Enabled</label>
+          <label class="toggle-switch"><input type="checkbox" name="enabled" <%= cfg.azureAD.enabled?'checked':'' %>/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group"><label>Tenant ID</label><input type="text" name="tenantId" value="<%= cfg.azureAD.tenantId||'' %>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/></div>
+        <div class="form-group"><label>Application (Client) ID</label><input type="text" name="clientId" value="<%= cfg.azureAD.clientId||'' %>" placeholder="App registration client ID"/></div>
+        <div class="form-group"><label>Client Secret</label><input type="password" name="clientSecret" placeholder="<%= cfg.azureAD.hasSecret?'(unchanged - stored encrypted)':'Enter client secret' %>" autocomplete="new-password"/></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Verified Domain</label><input type="text" name="domain" value="<%= cfg.azureAD.domain||'' %>" placeholder="yourdomain.onmicrosoft.com"/></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="testIntegration('azure-ad',this)">Test Connection</button>
+        </div>
+      </form>
+      <div class="alert alert-info" style="margin-top:10px;margin-bottom:0;font-size:11px;">Requires an Azure AD App Registration with <code>Application</code> permission type and admin-consented Microsoft Graph API permissions (e.g. <code>Directory.Read.All</code>).</div>
+    </div>
+  </div>
+
+  <!-- MeshCentral -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      <span class="card-title">MeshCentral</span>
+      <span class="badge <%= cfg.meshCentral.status==='connected'?'badge-active':cfg.meshCentral.status==='error'?'badge-disabled':'badge-neutral' %>" style="margin-left:auto;font-size:10px;"><%= cfg.meshCentral.status %></span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <form method="POST" action="/integrations/meshcentral/save">
+        <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="margin-bottom:0;">Enabled</label>
+          <label class="toggle-switch"><input type="checkbox" name="enabled" <%= cfg.meshCentral.enabled?'checked':'' %>/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group"><label>Server URL</label><input type="text" name="serverUrl" value="<%= cfg.meshCentral.serverUrl||'' %>" placeholder="https://mesh.yourdomain.local"/></div>
+        <div class="form-group" style="margin-bottom:0;"><label>API Key / Login Token</label><input type="password" name="apiKey" placeholder="<%= cfg.meshCentral.hasApiKey?'(unchanged - stored encrypted)':'Enter API key' %>" autocomplete="new-password"/></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="testIntegration('meshcentral',this)">Test Connection</button>
+        </div>
+      </form>
+      <div class="alert alert-info" style="margin-top:10px;margin-bottom:0;font-size:11px;">Connectivity test verifies the server is reachable. Full device inventory sync uses the MeshCentral REST API / WebSocket control channel.</div>
+    </div>
+  </div>
+
+  <!-- VMware -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      <span class="card-title">VMware vCenter</span>
+      <span class="badge <%= cfg.vmware.status==='connected'?'badge-active':cfg.vmware.status==='error'?'badge-disabled':'badge-neutral' %>" style="margin-left:auto;font-size:10px;"><%= cfg.vmware.status %></span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <form method="POST" action="/integrations/vmware/save">
+        <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="margin-bottom:0;">Enabled</label>
+          <label class="toggle-switch"><input type="checkbox" name="enabled" <%= cfg.vmware.enabled?'checked':'' %>/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group"><label>vCenter URL</label><input type="text" name="vcenterUrl" value="<%= cfg.vmware.vcenterUrl||'' %>" placeholder="https://vcenter.yourdomain.local"/></div>
+        <div class="form-group"><label>Username</label><input type="text" name="username" value="<%= cfg.vmware.username||'' %>" placeholder="administrator@vsphere.local"/></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Password</label><input type="password" name="password" placeholder="<%= cfg.vmware.hasPassword?'(unchanged - stored encrypted)':'Enter password' %>" autocomplete="new-password"/></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="testIntegration('vmware',this)">Test Connection</button>
+        </div>
+      </form>
+      <div class="alert alert-info" style="margin-top:10px;margin-bottom:0;font-size:11px;">Connectivity test verifies the vCenter endpoint is reachable. Full VM/host inventory requires vSphere API session authentication.</div>
+    </div>
+  </div>
+
+  <!-- SCCM -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span class="card-title">Microsoft SCCM / Configuration Manager</span>
+      <span class="badge <%= cfg.sccm.status==='connected'?'badge-active':cfg.sccm.status==='error'?'badge-disabled':'badge-neutral' %>" style="margin-left:auto;font-size:10px;"><%= cfg.sccm.status %></span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <form method="POST" action="/integrations/sccm/save">
+        <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="margin-bottom:0;">Enabled</label>
+          <label class="toggle-switch"><input type="checkbox" name="enabled" <%= cfg.sccm.enabled?'checked':'' %>/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group"><label>Site Server Hostname</label><input type="text" name="siteServer" value="<%= cfg.sccm.siteServer||'' %>" placeholder="sccm-primary.yourdomain.local"/></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Site Code</label><input type="text" name="siteCode" value="<%= cfg.sccm.siteCode||'' %>" placeholder="P01" maxlength="3"/></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="testIntegration('sccm',this)">Test Connection</button>
+        </div>
+      </form>
+      <div class="alert alert-info" style="margin-top:10px;margin-bottom:0;font-size:11px;">Connectivity test checks the WMI/DCOM endpoint mapper port (135). Full SMS Provider queries require the ConfigMgr console/SDK installed on this server and run via PowerShell.</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<style>
+.toggle-switch{position:relative;display:inline-block;width:40px;height:22px;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:22px;transition:.3s;}
+.toggle-slider::before{content:'';position:absolute;height:16px;width:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s;}
+.toggle-switch input:checked + .toggle-slider{background:var(--success);}
+.toggle-switch input:checked + .toggle-slider::before{transform:translateX(18px);}
+</style>
+
+<script>
+async function testIntegration(type, btn){
+  btn.disabled=true; var orig=btn.textContent; btn.textContent='Testing...';
+  try{
+    var r=await fetch('/integrations/test/'+type,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    alert(d.ok ? ('✓ '+(d.message||'Connection successful.')) : ('✗ FAILED: '+d.error));
+  }catch(e){
+    alert('Error: '+e.message);
+  }
+  btn.disabled=false; btn.textContent=orig;
+}
+</script>
+<%- include('../layout-end') %>

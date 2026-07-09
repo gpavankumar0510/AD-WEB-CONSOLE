@@ -1,0 +1,113 @@
+<%- include('../layout', { title: 'Pre-Migration Assessment', page: 'migration', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Pre-Migration Assessment</div><div class="topbar-sub">Validate environment before migration</div></div><div class="topbar-actions"><a href="/migration" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!result){%>
+<div class="card" style="max-width:580px;"><div class="card-header"><span class="card-title">Configure Assessment</span></div><div class="card-body" style="padding:18px;">
+  <div class="alert alert-info" style="margin-bottom:14px;">Runs DCDiag, replication, DNS, SYSVOL, FSMO, disk, and backup checks.<br/><strong>Takes 30-90 seconds</strong> — the page will reload with results when complete.</div>
+  <form method="POST" action="/migration/assess" id="assessForm">
+    <div class="form-row"><div class="form-group"><label>Target Windows Server Version</label><select name="targetOS"><option value="2025">Windows Server 2025</option><option value="2022" selected>Windows Server 2022</option><option value="2019">Windows Server 2019</option><option value="2016">Windows Server 2016</option></select></div><div class="form-group"><label>Migration Scenario</label><select name="scenario"><option value="DC-to-DC">DC to DC</option><option value="P2V">Physical to Virtual</option><option value="V2P">Virtual to Physical</option><option value="cloud">On-Premises to Cloud</option></select></div></div>
+    <button type="submit" class="btn btn-warning" id="assessBtn">Run Assessment</button>
+  </form>
+  <div id="loadingBox" style="display:none;margin-top:16px;padding:16px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:20px;height:20px;border:2px solid var(--warning);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--warning);">Assessment running...</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Running DCDiag, replication checks, DNS, FSMO, storage and backup validation. Please wait.</div>
+      </div>
+    </div>
+    <div id="timer" style="font-size:11px;color:var(--text3);margin-top:10px;font-family:var(--mono);">Elapsed: 0s</div>
+  </div>
+</div></div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<script>
+var timerInterval;
+document.getElementById('assessForm').addEventListener('submit', function() {
+  var btn = document.getElementById('assessBtn');
+  btn.disabled = true; btn.textContent = 'Running...';
+  document.getElementById('loadingBox').style.display = 'block';
+  var start = Date.now();
+  timerInterval = setInterval(function() {
+    var s = Math.round((Date.now()-start)/1000);
+    document.getElementById('timer').textContent = 'Elapsed: '+s+'s — this may take up to 90 seconds';
+  }, 1000);
+});
+</script>
+<%}else{%>
+<% var rColor=result.readiness==='ready'?'var(--success)':result.readiness==='ready-with-warnings'?'var(--warning)':'var(--danger)';var rIcon=result.readiness==='ready'?'✅':result.readiness==='ready-with-warnings'?'⚠️':'❌';%>
+<div style="background:var(--surface);border:2px solid <%= rColor %>;border-radius:12px;padding:18px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
+  <div style="font-size:44px;"><%= rIcon %></div>
+  <div style="flex:1;"><div style="font-size:17px;font-weight:600;color:<%= rColor %>;text-transform:capitalize;"><%= result.readiness.replace(/-/g,' ') %></div><div style="font-size:12px;color:var(--text2);margin-top:4px;"><%= result.totalChecks %> checks &mdash; <%= result.passedChecks %> passed, <%= result.errors %> errors, <%= result.warnings %> warnings &mdash; completed in <%= (result.duration/1000).toFixed(1) %>s</div><div style="font-size:11px;color:var(--text3);">Target: Windows Server <%= result.targetOS %> &mdash; Scenario: <%= result.scenario %></div></div>
+  <div style="display:flex;flex-direction:column;gap:6px;"><a href="/migration/assess" class="btn btn-secondary btn-sm">Re-run</a><% if(result.readiness!=='not-ready'){%><a href="/migration/new" class="btn btn-primary btn-sm">Start Migration</a><%}%></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+  <div class="card"><div class="card-header"><span class="card-title">Check Results (<%= result.totalChecks %>)</span></div><div class="card-body" style="max-height:400px;overflow-y:auto;">
+    <% var cats={};var catOrder=[];result.checks.forEach(function(c){if(!cats[c.category]){cats[c.category]=[];catOrder.push(c.category);}cats[c.category].push(c);});%>
+    <% for(var ci=0;ci<catOrder.length;ci++){var cat=catOrder[ci];%>
+    <div style="padding:8px 14px;background:var(--surface2);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border);"><%= cat %></div>
+    <% var catChecks=cats[cat];for(var cci=0;cci<catChecks.length;cci++){var ch=catChecks[cci];%>
+    <div style="display:flex;align-items:flex-start;gap:9px;padding:9px 14px;border-bottom:1px solid var(--border);">
+      <span style="font-size:14px;flex-shrink:0;"><%= ch.passed?'✅':ch.severity==='error'?'❌':'⚠️' %></span>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:500;"><%= ch.name %></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;"><%= ch.message %></div>
+        <% if(!ch.passed&&ch.fix){%>
+        <div style="font-size:11px;color:var(--info);margin-top:4px;padding:4px 8px;background:var(--info-bg);border-radius:4px;font-family:var(--mono);">Fix: <%= ch.fix %></div>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-warning btn-sm" data-check-name="<%= ch.name %>" onclick="repairCheck(this)">🔧 Repair</button>
+          <span class="repair-status" style="font-size:11px;color:var(--text3);"></span>
+        </div>
+        <%}%>
+      </div>
+    </div>
+    <%}%>
+    <%}%>
+  </div></div>
+  <div class="card"><div class="card-header"><span class="card-title">Recommendations (<%= result.recommendations.length %>)</span></div><div class="card-body" style="max-height:400px;overflow-y:auto;">
+    <% if(!result.recommendations.length){%><div class="empty-state" style="padding:20px;"><p>No recommendations — environment looks healthy.</p></div>
+    <%}else{for(var ri=0;ri<result.recommendations.length;ri++){var rec=result.recommendations[ri];%>
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;">
+      <span style="font-size:13px;flex-shrink:0;"><%= rec.priority==='critical'?'🔴':rec.priority==='warning'?'🟡':'🔵' %></span>
+      <div><div style="font-size:12px;color:<%= rec.priority==='critical'?'var(--danger)':rec.priority==='warning'?'var(--warning)':'var(--info)' %>;"><%= rec.text %></div><% if(rec.fix){%><div style="font-size:11px;color:var(--text3);margin-top:3px;font-family:var(--mono);">→ <%= rec.fix %></div><%}%></div>
+    </div>
+    <%}%>
+    <%}%>
+  </div></div>
+</div>
+<%}%></div>
+<script>
+async function repairCheck(btn){
+  var checkName = btn.getAttribute('data-check-name');
+  var statusEl = btn.parentElement.querySelector('.repair-status');
+  btn.disabled = true;
+  var originalText = btn.textContent;
+  btn.textContent = 'Repairing...';
+  statusEl.textContent = '';
+  statusEl.style.color = 'var(--text3)';
+  try {
+    var r = await fetch('/migration/repair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkName: checkName }),
+    });
+    var d = await r.json();
+    statusEl.textContent = d.message || (d.ok ? 'Repair completed.' : 'Repair failed.');
+    statusEl.style.color = d.ok ? 'var(--success)' : 'var(--danger)';
+    if (d.ok) {
+      btn.textContent = '✓ Repaired';
+      btn.classList.remove('btn-warning');
+      btn.classList.add('btn-secondary');
+    } else {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.style.color = 'var(--danger)';
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+</script>
+<%- include('../layout-end') %>

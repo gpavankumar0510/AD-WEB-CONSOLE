@@ -1,0 +1,21 @@
+<%- include('../layout', { title: 'User Activity Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">User Activity Report</div><div class="topbar-sub"><%= logs.length %> user-related events</div></div>
+<div class="topbar-actions"><a href="/reports/export/user-activity" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<div class="card"><div class="card-body">
+<% if(!logs.length){%><div class="empty-state" style="padding:32px;"><p>No user activity recorded yet</p></div>
+<%}else{%>
+<table><thead><tr><th>Timestamp</th><th>Action</th><th>Actor</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead><tbody>
+<% for(var i=0;i<logs.length;i++){var l=logs[i];%>
+<tr>
+  <td class="mono text-muted" style="font-size:10px;white-space:nowrap;"><%= l.ts ? new Date(l.ts).toLocaleString() : '—' %></td>
+  <td style="font-size:12px;font-weight:500;"><%= l.action||'—' %></td>
+  <td style="font-size:12px;"><%= l.actor||'—' %></td>
+  <td class="mono" style="font-size:11px;color:var(--text3);"><%= l.target||'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= l.details||'—' %></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= l.ip||'—' %></td>
+</tr>
+<%}%>
+</tbody></table><%}%>
+</div></div></div>
+<%- include('../layout-end') %>

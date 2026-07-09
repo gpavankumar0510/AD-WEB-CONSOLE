@@ -1,0 +1,15 @@
+<%- include('../layout', { title: 'Locked Accounts', page: 'users', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Locked Accounts</div><div class="topbar-sub">Users locked out of the domain</div></div><div class="topbar-actions"><a href="/users" class="btn btn-secondary">All Users</a></div></div>
+<div class="content">
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="card"><div class="card-header"><span class="card-title">Locked Accounts (<%= users.length %>)</span></div><div class="card-body">
+<% if (!users.length) { %><div class="empty-state"><p>No locked accounts — all clear</p></div>
+<% } else { %><table><thead><tr><th>User</th><th>Username</th><th>Lock Time</th><th></th></tr></thead><tbody>
+<% for(var i=0;i<users.length;i++){var u=users[i];var lt=parseInt(u.lockoutTime||0);%>
+<tr><td style="font-weight:500;font-size:13px;"><%= u.displayName||u.sAMAccountName %></td><td class="mono text-muted" style="font-size:11px;"><%= u.sAMAccountName %></td><td class="text-muted" style="font-size:11px;"><%= lt>0?new Date(lt/1e4-11644473600000).toLocaleString():'—' %></td><td><button class="btn btn-success btn-sm" onclick="unlock('<%= u.sAMAccountName %>')">Unlock</button></td></tr>
+<% } %></tbody></table><% } %>
+</div></div></div>
+<script>
+async function unlock(u){var r=await fetch('/users/'+u+'/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok){alert(u+' unlocked.');location.reload();}else alert(d.error);}
+</script>
+<%- include('../layout-end') %>

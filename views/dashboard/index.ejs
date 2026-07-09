@@ -1,0 +1,671 @@
+<%- include('../layout', { title: 'Dashboard', page: 'dashboard', admin }) %>
+<% var domainLabel = ''; try { domainLabel = require('../utils/autoDetect').getSettings().domain || 'domain.local'; } catch(e) { domainLabel = process.env.AD_DOMAIN_DISPLAY || 'domain.local'; } %>
+<style>
+.dash-grid{display:grid;gap:16px;}
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;}
+.stat-tile{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;display:flex;align-items:center;gap:14px;transition:var(--transition);}
+.stat-tile:hover{border-color:var(--border2);background:var(--surface3);}
+.stat-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.stat-icon-blue{background:rgba(99,102,241,.15);color:#818cf8;}
+.stat-icon-green{background:rgba(34,197,94,.15);color:#4ade80;}
+.stat-icon-red{background:rgba(239,68,68,.15);color:#f87171;}
+.stat-icon-yellow{background:rgba(234,179,8,.15);color:#facc15;}
+.stat-icon-purple{background:rgba(168,85,247,.15);color:#c084fc;}
+.stat-num{font-size:24px;font-weight:700;color:var(--text);line-height:1;}
+.stat-lbl{font-size:11px;color:var(--text3);margin-top:3px;}
+.health-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+.health-tile{border-radius:var(--radius-lg);padding:14px 16px;border-left:3px solid;display:flex;align-items:center;gap:12px;}
+.health-ok{background:rgba(34,197,94,.08);border-color:#4ade80;}
+.health-warn{background:rgba(234,179,8,.08);border-color:#facc15;}
+.health-err{background:rgba(239,68,68,.08);border-color:#f87171;}
+.health-none{background:var(--surface2);border-color:var(--border2);}
+.health-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.dot-ok{background:#4ade80;box-shadow:0 0 6px #4ade8066;}
+.dot-warn{background:#facc15;}
+.dot-err{background:#f87171;box-shadow:0 0 6px #f8717166;}
+.dot-none{background:var(--text4);}
+.info-kv{display:flex;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--border);}
+.info-kv:last-child{border-bottom:none;}
+.info-k{font-size:11px;color:var(--text3);min-width:140px;flex-shrink:0;}
+.info-v{font-size:12px;font-weight:500;color:var(--text);font-family:var(--mono);}
+.clock-wrap{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;}
+.clock-display{font-family:var(--mono);font-size:28px;font-weight:300;letter-spacing:.02em;color:var(--text);}
+.date-display{font-size:13px;color:var(--primary);text-decoration:underline dotted;margin-top:2px;cursor:pointer;}
+/* Calendar popup */
+#calPopup{display:none;position:fixed;z-index:500;background:var(--surface);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);width:340px;padding:16px;}
+.cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.cal-nav{background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;}
+.cal-nav:hover{color:var(--primary);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;}
+.cal-dow{font-size:10px;font-weight:600;color:var(--text4);padding:4px 0;}
+.cal-day{font-size:12px;padding:6px 2px;border-radius:6px;cursor:pointer;position:relative;}
+.cal-day:hover{background:var(--surface3);}
+.cal-today{background:var(--primary)!important;color:#fff;font-weight:700;}
+.cal-dot{width:4px;height:4px;border-radius:50%;background:var(--warning);margin:1px auto 0;}
+.cal-events-panel{margin-top:12px;border-top:1px solid var(--border);padding-top:10px;max-height:160px;overflow-y:auto;}
+/* Event Modal */
+#evtModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;align-items:center;justify-content:center;}
+.evt-modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:12px;width:400px;box-shadow:0 12px 48px rgba(0,0,0,.5);}
+.dc-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;margin:3px;}
+</style>
+
+<!-- Topbar -->
+<div class="topbar">
+  <div>
+    <div class="topbar-title">Dashboard</div>
+    <div class="topbar-sub" id="domain-sub"><%= domainInfo && domainInfo.dnsRoot ? domainInfo.dnsRoot : domainLabel %></div>
+  </div>
+  <div class="topbar-actions" style="display:flex;align-items:center;gap:14px;">
+    <!-- Clickable clock/date -->
+    <div onclick="toggleCal(event)" class="clock-wrap" title="Click to open calendar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <div>
+        <div class="clock-display" id="big-clock">--:--:--</div>
+        <div class="date-display" id="big-date">Loading...</div>
+      </div>
+    </div>
+    <a href="/users/create" class="btn btn-primary">+ New User</a>
+  </div>
+</div>
+
+<!-- Calendar popup (hidden by default) -->
+<div id="calPopup">
+  <div class="cal-hdr">
+    <button class="cal-nav" id="calPrev">&#8249;</button>
+    <div style="font-size:13px;font-weight:600;" id="calMonthLabel"></div>
+    <button class="cal-nav" id="calNext">&#8250;</button>
+    <button class="btn btn-primary btn-sm" style="margin-left:8px;" onclick="openEvtModal(null, null)">+ Add</button>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+  <div class="cal-events-panel" id="calDayEvents" style="display:none;"></div>
+</div>
+
+<!-- Event Modal -->
+<div id="evtModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;align-items:center;justify-content:center;">
+  <div class="evt-modal-box">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:14px;font-weight:600;" id="evtModalTitle">Add Event</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeEvtModal()">✕</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <input type="hidden" id="evtId">
+      <div class="form-group"><label>Date</label><input type="date" id="evtDate"/></div>
+      <div class="form-group"><label>Title</label><input type="text" id="evtTitle" placeholder="e.g. Patch Tuesday"/></div>
+      <div class="form-group"><label>Type</label>
+        <select id="evtType">
+          <option value="event">General Event</option>
+          <option value="maintenance">Maintenance Window</option>
+          <option value="holiday">Holiday</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;"><label>Notes (optional)</label><textarea id="evtDesc" rows="2" style="resize:vertical;"></textarea></div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;">
+      <button class="btn btn-danger btn-sm" id="evtDelBtn" style="display:none;" onclick="deleteEvt()">Delete</button>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="closeEvtModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveEvt()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- Org Announcement -->
+<% if(typeof appSettings!=='undefined' && appSettings.orgAnnouncement && appSettings.orgAnnouncement.trim()){%>
+<div class="alert alert-info animate-slide" style="margin-bottom:16px;">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M3 11l18-5v12L3 14v-3z"/></svg>
+  <div><strong><%= appSettings.orgName||'Announcement' %>:</strong> <%= appSettings.orgAnnouncement %></div>
+</div>
+<%}%>
+
+<!-- ── Row 1: Statistics ───────────────────────────────────────────────── -->
+<div class="stat-row animate-slide">
+  <div class="stat-tile">
+    <div class="stat-icon stat-icon-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+    <div><div class="stat-num" id="st-total"><%= (stats&&stats.totalUsers)||0 %></div><div class="stat-lbl">Total Users</div></div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-icon stat-icon-green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+    <div><div class="stat-num" id="st-active"><%= (stats&&stats.activeUsers)||0 %></div><div class="stat-lbl">Active Users</div></div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-icon stat-icon-red"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+    <div><div class="stat-num" id="st-locked"><%= (lockedUsers&&lockedUsers.length)||0 %></div><div class="stat-lbl">Locked Accounts</div></div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-icon stat-icon-purple"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+    <div><div class="stat-num" id="st-computers"><%= (stats&&stats.totalComputers)||0 %></div><div class="stat-lbl">Computers</div></div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-icon stat-icon-yellow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div>
+    <div><div class="stat-num" id="st-groups"><%= (stats&&stats.totalGroups)||0 %></div><div class="stat-lbl">Groups</div></div>
+  </div>
+</div>
+
+<!-- ── Row 2: Health indicators ──────────────────────────────────────────── -->
+<div class="health-row animate-slide" style="animation-delay:.05s;">
+  <% var replOk = services && services.replication && services.replication.healthy;
+     var dnsOk  = services && services.dns && services.dns.installed;
+     var bkOk   = backupHistory && backupHistory.length && backupHistory[0].status==='completed';
+     var certOk = !certSummary || certSummary.expired===0;
+  %>
+  <div class="health-tile <%= replOk?'health-ok':services?'health-err':'health-none' %>">
+    <div class="health-dot <%= replOk?'dot-ok':services?'dot-err':'dot-none' %>"></div>
+    <div><div style="font-size:12px;font-weight:600;">AD Replication</div><div style="font-size:11px;color:var(--text3);"><%= replOk?'Healthy':services?((services.replication&&services.replication.failures)||0)+' failure(s)':'Scanning...' %></div></div>
+  </div>
+  <div class="health-tile <%= dnsOk?'health-ok':services?'health-warn':'health-none' %>">
+    <div class="health-dot <%= dnsOk?'dot-ok':services?'dot-warn':'dot-none' %>"></div>
+    <div><div style="font-size:12px;font-weight:600;">DNS Service</div><div style="font-size:11px;color:var(--text3);"><%= dnsOk?((services.dns.totalZones||0)+' zone(s)'):services?'Not detected':'Scanning...' %></div></div>
+  </div>
+  <div class="health-tile <%= bkOk?'health-ok':backupHistory.length?'health-warn':'health-none' %>">
+    <div class="health-dot <%= bkOk?'dot-ok':backupHistory.length?'dot-warn':'dot-none' %>"></div>
+    <div><div style="font-size:12px;font-weight:600;">Backup Status</div><div style="font-size:11px;color:var(--text3);"><%= bkOk?new Date(backupHistory[0].timestamp).toLocaleDateString('en-GB'):backupHistory.length?backupHistory[0].status:'No backups yet' %></div></div>
+  </div>
+  <div class="health-tile <%= certOk?'health-ok':certSummary?'health-warn':'health-none' %>">
+    <div class="health-dot <%= certOk?'dot-ok':certSummary?'dot-warn':'dot-none' %>"></div>
+    <div><div style="font-size:12px;font-weight:600;">Certificates</div><div style="font-size:11px;color:var(--text3);"><%= certSummary ? (certSummary.expired>0?certSummary.expired+' expired':certSummary.expiringSoon>0?certSummary.expiringSoon+' expiring soon':'All healthy') : 'Scanning...' %></div></div>
+  </div>
+</div>
+
+<!-- ── Row 3: Domain Info + SCAP + DC List ──────────────────────────────── -->
+<div style="display:grid;grid-template-columns:1.1fr 0.9fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Domain & Server Information - loads via AJAX so page renders instantly -->
+  <div class="card animate-slide" style="animation-delay:.08s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 014-10z"/></svg>
+      <span class="card-title">Domain & Server</span>
+      <button onclick="refreshDomainInfo()" class="btn btn-secondary btn-sm" style="margin-left:auto;font-size:10px;" id="domainRefreshBtn">↻ Refresh</button>
+    </div>
+    <div class="card-body" style="padding:0 16px;" id="domainInfoBody">
+      <% var di = domainInfo || {}; %>
+      <% var fields = [
+        ['Computer Name',    di.computerName],
+        ['Hostname',         di.computerName ? di.computerName + '.' + (di.dnsRoot||'') : null],
+        ['Domain Name',      di.dnsRoot || domainLabel],
+        ['NetBIOS',          di.netbios],
+        ['Domain Controller',di.pdcEmulator],
+        ['IP Address',       di.ipAddress],
+        ['Operating System', di.osName],
+        ['Server Version',   di.osBuild ? 'Build ' + di.osBuild + ' (' + (di.osVersion||'') + ')' : null],
+        ['CPU',              di.cpuName ? di.cpuName + ' (' + (di.cpuCores||'?') + ' cores)' : null],
+        ['Memory',           di.totalMemoryGB ? (di.usedMemoryGB||'?') + ' / ' + di.totalMemoryGB + ' GB used' : null],
+        ['Disk',             di.diskInfo],
+        ['Uptime',           di.uptimeHours ? (di.uptimeHours >= 24 ? Math.floor(di.uptimeHours/24)+'d ' : '') + (Math.floor(di.uptimeHours%24))+'h' : null],
+        ['Domain Mode',      di.domainMode],
+        ['Forest Mode',      di.forestMode],
+        ['AD Version',       di.adVersion],
+        ['DC Time',          di.currentDCTime ? new Date(di.currentDCTime).toLocaleString() : null],
+      ]; %>
+      <% fields.forEach(function(f){ %>
+      <div class="info-kv" data-field="<%= f[0] %>">
+        <span class="info-k"><%= f[0] %></span>
+        <span class="info-v" style="font-size:11px;"><%= f[1] || '<span style=\'color:var(--text4)\'>Loading...</span>' %></span>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+
+  <!-- SCAP Security Score -->
+  <div class="card animate-slide" style="animation-delay:.1s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span class="card-title">Security Posture</span>
+      <% if(scapScore){%><a href="/security" class="btn btn-secondary btn-sm" style="margin-left:auto;">Details</a><%}%>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:12px;">
+      <% if(scapScore&&scapScore.grade&&scapScore.grade!=='N/A'){
+        var gc=scapScore.grade==='A'?'#4ade80':scapScore.grade==='B'?'#818cf8':scapScore.grade==='C'?'#facc15':'#f87171';
+        var glow=scapScore.grade==='A'?'rgba(74,222,128,.3)':scapScore.grade==='B'?'rgba(129,140,248,.3)':scapScore.grade==='C'?'rgba(250,204,21,.3)':'rgba(248,113,113,.3)';
+      %>
+      <div style="width:90px;height:90px;border-radius:50%;border:4px solid <%=gc%>;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 0 20px <%=glow%>;">
+        <div style="font-size:32px;font-weight:700;color:<%=gc%>;line-height:1;"><%= scapScore.grade %></div>
+        <div style="font-size:11px;color:var(--text3);"><%= scapScore.percent %>%</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:13px;font-weight:600;color:<%=gc%>">SCAP Score: <%= scapScore.percent %>%</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;"><%= scapScore.score %>/<%= scapScore.total %> points</div>
+        <% var failing=(scapScore.checks||[]).filter(function(c){return !c.pass;}).length; %>
+        <% if(failing>0){%><div style="font-size:11px;color:var(--warning);margin-top:4px;"><%= failing %> recommendation(s)</div><%}%>
+      </div>
+      <%}else{%>
+      <div style="text-align:center;color:var(--text3);">
+        <div style="font-size:28px;margin-bottom:8px;">🛡️</div>
+        <div style="font-size:12px;">Score pending</div>
+        <a href="/security" class="btn btn-secondary btn-sm" style="margin-top:10px;">Run Security Scan</a>
+      </div>
+      <%}%>
+    </div>
+    <% if(scapScore&&scapScore.checks&&scapScore.checks.length){%>
+    <div style="border-top:1px solid var(--border);padding:8px 14px;">
+      <% var cats={};(scapScore.checks||[]).forEach(function(c){if(!cats[c.category])cats[c.category]={pass:0,fail:0};c.pass?cats[c.category].pass++:cats[c.category].fail++;});
+         Object.keys(cats).slice(0,4).forEach(function(cat){ var v=cats[cat]; %>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;">
+        <span style="font-size:10px;color:var(--text3);"><%= cat %></span>
+        <span style="font-size:10px;"><span style="color:var(--success)"><%= v.pass %>✓</span> <span style="color:var(--danger)"><%= v.fail %>✗</span></span>
+      </div>
+      <%});%>
+    </div>
+    <%}%>
+  </div>
+
+  <!-- Domain Controllers -->
+  <div class="card animate-slide" style="animation-delay:.12s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      <span class="card-title">Domain Controllers</span>
+      <span class="badge badge-neutral" style="margin-left:auto;font-size:10px;"><%= (allDCs&&allDCs.length)||0 %> DC<%= (allDCs&&allDCs.length)!==1?'s':'' %></span>
+    </div>
+    <div class="card-body" style="padding:8px 12px;">
+      <% if(!allDCs||!allDCs.length){%>
+      <div class="empty-state" style="padding:20px;font-size:12px;">No DC data yet — loading in background</div>
+      <%}else{allDCs.forEach(function(dc){%>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);last-child:border:none;">
+        <span class="health-dot <%= dc.responding?'dot-ok':'dot-err' %>" style="flex-shrink:0;"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= dc.name %></div>
+          <div style="font-size:10px;color:var(--text3);">
+            <%= dc.ip||'' %>
+            <% if(dc.isGC){%><span class="badge badge-info" style="font-size:9px;margin-left:4px;">GC</span><%}%>
+            <% if(dc.isRODC){%><span class="badge badge-locked" style="font-size:9px;margin-left:2px;">RODC</span><%}%>
+          </div>
+        </div>
+        <span class="badge <%= dc.responding?'badge-active':'badge-disabled' %>" style="font-size:9px;"><%= dc.responding?'Online':'Offline' %></span>
+      </div>
+      <%});%>
+      <%}%>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 4: Password Expiry + Locked Users + Backup + Quick Actions ──── -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 0.7fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Password expiry -->
+  <div class="card animate-slide" style="animation-delay:.14s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      <span class="card-title">Password Expiry</span>
+      <a href="/reports/password-expiry" class="btn btn-secondary btn-sm" style="margin-left:auto;">Report</a>
+    </div>
+    <div class="card-body" style="padding:0 14px;">
+      <% // Only show: expired OR expiring within 30 days, never-expires excluded
+         var expiringUsers = (!pwdExpiry||!pwdExpiry.users)?[]:pwdExpiry.users.filter(function(u){
+           if (u.neverExpires) return false;
+           if (u.daysUntilExpiry === null || u.daysUntilExpiry === undefined) return false;
+           return u.daysUntilExpiry <= 30; // only show urgent ones on dashboard
+         }).sort(function(a,b){ return (a.daysUntilExpiry||999)-(b.daysUntilExpiry||999); });
+         var totalExpiring = (!pwdExpiry||!pwdExpiry.users)?0:pwdExpiry.users.filter(function(u){
+           return !u.neverExpires && u.daysUntilExpiry !== null && u.daysUntilExpiry !== undefined && u.daysUntilExpiry <= 90;
+         }).length;
+      %>
+      <% if(!expiringUsers.length){%>
+      <div style="padding:14px 0;text-align:center;"><div style="font-size:24px;">✅</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">No passwords expiring within 30 days</div><% if(totalExpiring>0){%><div style="font-size:11px;color:var(--text3);margin-top:4px;"><%= totalExpiring %> expiring within 90 days — <a href="/reports/password-expiry" style="color:var(--primary);">view report</a></div><%}%></div>
+      <%}else{expiringUsers.slice(0,6).forEach(function(u){var urgent=u.daysUntilExpiry<=7;var expired=u.daysUntilExpiry<0;%>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;" title="<%= u.username %>"><%= u.displayName||u.username %></div>
+        <span class="badge <%= expired?'badge-disabled':urgent?'badge-locked':'badge-neutral' %>" style="font-size:10px;"><%= expired?'Expired':(u.daysUntilExpiry+'d') %></span>
+      </div>
+      <%});%>
+      <%}%>
+    </div>
+  </div>
+
+  <!-- Locked accounts -->
+  <div class="card animate-slide" style="animation-delay:.16s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span class="card-title">Locked Accounts</span>
+      <a href="/users/locked" class="btn btn-secondary btn-sm" style="margin-left:auto;">Manage</a>
+    </div>
+    <div class="card-body" style="padding:0 14px;">
+      <% if(!lockedUsers||!lockedUsers.length){%>
+      <div style="padding:18px 0;text-align:center;"><div style="font-size:24px;">✅</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">No locked accounts</div></div>
+      <%}else{lockedUsers.slice(0,6).forEach(function(u){%>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:12px;font-weight:500;"><%= u.displayName||u.sAMAccountName %></div>
+        <a href="/users/<%= encodeURIComponent(u.sAMAccountName) %>" class="btn btn-secondary btn-sm" style="font-size:10px;">Unlock</a>
+      </div>
+      <%});%>
+      <%}%>
+    </div>
+  </div>
+
+  <!-- Recent backups -->
+  <div class="card animate-slide" style="animation-delay:.18s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="card-title">Recent Backups</span>
+      <a href="/backup" class="btn btn-secondary btn-sm" style="margin-left:auto;">Backup</a>
+    </div>
+    <div class="card-body" style="padding:0 14px;">
+      <% if(!backupHistory||!backupHistory.length){%>
+      <div class="empty-state" style="padding:18px;font-size:12px;">No backups yet</div>
+      <%}else{backupHistory.slice(0,4).forEach(function(b){%>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:11px;font-weight:500;"><%= b.type||'Backup' %></div>
+          <div style="font-size:10px;color:var(--text3);"><%= new Date(b.timestamp).toLocaleDateString('en-GB') %></div>
+        </div>
+        <span class="badge <%= b.status==='completed'?'badge-active':'badge-disabled' %>" style="font-size:9px;"><%= b.status %></span>
+      </div>
+      <%});%>
+      <%}%>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="card animate-slide" style="animation-delay:.2s;">
+    <div class="card-header"><span class="card-title">Quick Actions</span></div>
+    <div class="card-body" style="padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
+      <a href="/users/create" class="btn btn-secondary" style="text-align:left;font-size:12px;">👤 New User</a>
+      <a href="/groups" class="btn btn-secondary" style="text-align:left;font-size:12px;">👥 Manage Groups</a>
+      <a href="/ous" class="btn btn-secondary" style="text-align:left;font-size:12px;">🗂️ Manage OUs</a>
+      <a href="/gpo" class="btn btn-secondary" style="text-align:left;font-size:12px;">📐 Group Policy</a>
+      <a href="/security" class="btn btn-secondary" style="text-align:left;font-size:12px;">🛡️ Security Scan</a>
+      <a href="/reports" class="btn btn-secondary" style="text-align:left;font-size:12px;">📊 Reports</a>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Row 5: FSMO Roles + Upcoming Holidays ─────────────────────────────── -->
+<div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:16px;">
+  <div class="card animate-slide" style="animation-delay:.22s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      <span class="card-title">FSMO Role Holders</span>
+    </div>
+    <div class="card-body" style="padding:0 16px;">
+      <% var fsmo = (services&&services.fsmo)||{}; %>
+      <div class="info-kv"><span class="info-k">PDC Emulator</span><span class="info-v"><%= fsmo.PDCEmulator||'—' %></span></div>
+      <div class="info-kv"><span class="info-k">RID Master</span><span class="info-v"><%= fsmo.RIDMaster||'—' %></span></div>
+      <div class="info-kv"><span class="info-k">Infrastructure Master</span><span class="info-v"><%= fsmo.InfrastructureMaster||'—' %></span></div>
+      <div class="info-kv"><span class="info-k">Schema Master</span><span class="info-v"><%= fsmo.SchemaMaster||'—' %></span></div>
+      <div class="info-kv"><span class="info-k">Domain Naming</span><span class="info-v"><%= fsmo.DomainNamingMaster||'—' %></span></div>
+    </div>
+  </div>
+
+  <div class="card animate-slide" style="animation-delay:.24s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="card-title">Upcoming Holidays</span>
+      <button class="btn btn-secondary btn-sm" style="margin-left:auto;" onclick="toggleCal(event)">Open Calendar</button>
+    </div>
+    <div class="card-body" style="padding:0 14px;">
+      <% if(!upcomingHolidays||!upcomingHolidays.length){%>
+      <div class="empty-state" style="padding:18px;font-size:12px;">No upcoming holidays configured</div>
+      <%}else{upcomingHolidays.forEach(function(h){var hd=new Date(h.date+'T00:00:00');var dAway=Math.ceil((hd-new Date())/(1000*60*60*24));%>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+        <div><div style="font-size:12px;font-weight:500;"><%= h.name %></div><div style="font-size:10px;color:var(--text3);"><%= hd.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) %></div></div>
+        <span class="badge <%= dAway<=7?'badge-locked':'badge-neutral' %>" style="font-size:10px;"><%= dAway===0?'Today':dAway+'d' %></span>
+      </div>
+      <%});%>
+      <%}%>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 6: System Status ──────────────────────────────────────────────── -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Console Status -->
+  <div class="card animate-slide" style="animation-delay:.26s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span class="card-title">Console Status</span>
+      <span class="badge badge-active" style="margin-left:auto;font-size:10px;">Running</span>
+    </div>
+    <div class="card-body" style="padding:0 16px;">
+      <div class="info-kv"><span class="info-k">Node.js</span><span class="info-v"><%= (typeof systemStatus!=='undefined'&&systemStatus)?systemStatus.nodeVersion:'—' %></span></div>
+      <div class="info-kv"><span class="info-k">Port</span><span class="info-v"><%= (typeof systemStatus!=='undefined'&&systemStatus)?systemStatus.port:'—' %></span></div>
+      <div class="info-kv"><span class="info-k">LDAP Host</span><span class="info-v" style="font-size:10px;"><%= (typeof systemStatus!=='undefined'&&systemStatus)?systemStatus.ldapHost:'—' %></span></div>
+      <div class="info-kv"><span class="info-k">Uptime</span><span class="info-v" id="uptimeVal"><% if(typeof systemStatus!=='undefined'&&systemStatus){var u=Math.floor(systemStatus.uptimeSec);var uh=Math.floor(u/3600);var um=Math.floor((u%3600)/60);var us=u%60;%><%= uh+'h '+um+'m '+us+'s' %><%}else{%>—<%}%></span></div>
+      <div class="info-kv"><span class="info-k">Heap Used</span><span class="info-v"><%= (typeof systemStatus!=='undefined'&&systemStatus)?systemStatus.memUsedMB+' MB':'—' %></span></div>
+      <div class="info-kv"><span class="info-k">Platform</span><span class="info-v" style="font-size:10px;"><%= (typeof systemStatus!=='undefined'&&systemStatus)?systemStatus.platform:'—' %></span></div>
+    </div>
+  </div>
+
+  <!-- AD Service Account - populated via AJAX -->
+  <div class="card animate-slide" style="animation-delay:.28s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="card-title">Service Account</span>
+    </div>
+    <div class="card-body" style="padding:0 16px;" id="svcAcctBody">
+      <% var svcAcct = process.env.AD_SERVICE_ACCOUNT || 'svc-adconsole@' + (domainInfo&&domainInfo.dnsRoot ? domainInfo.dnsRoot : 'domain.local'); %>
+      <div class="info-kv" data-svc="account"><span class="info-k">Account</span><span class="info-v" style="font-size:10px;"><%= svcAcct %></span></div>
+      <div class="info-kv" data-svc="baseDN"><span class="info-k">Base DN</span><span class="info-v" style="font-size:10px;"><span class="di-fill" data-field="distinguishedName">Loading...</span></span></div>
+      <div class="info-kv" data-svc="dcCount"><span class="info-k">DC Count</span><span class="info-v"><span class="di-fill" data-field="domainControllers"><%= allDCs.length||'—' %></span></span></div>
+      <div class="info-kv" data-svc="sites"><span class="info-k">Sites</span><span class="info-v"><span class="di-fill" data-field="sites">Loading...</span></span></div>
+      <div class="info-kv" data-svc="pdc"><span class="info-k">PDC Emulator</span><span class="info-v" style="font-size:10px;"><span class="di-fill" data-field="pdcEmulator">Loading...</span></span></div>
+      <div class="info-kv" data-svc="rid"><span class="info-k">RID Master</span><span class="info-v" style="font-size:10px;"><span class="di-fill" data-field="ridMaster">Loading...</span></span></div>
+      <div class="info-kv" data-svc="created"><span class="info-k">Domain Created</span><span class="info-v" style="font-size:10px;"><span class="di-fill" data-field="created">Loading...</span></span></div>
+    </div>
+  </div>
+
+  <!-- Placeholder to maintain grid (hidden) - bell handles all activity -->
+  <div class="card animate-slide" style="animation-delay:.30s;">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span class="card-title">Activity Log</span>
+      <a href="/reports/audit" class="btn btn-secondary btn-sm" style="margin-left:auto;">View All</a>
+    </div>
+    <div class="card-body" style="padding:14px;display:flex;flex-direction:column;gap:8px;">
+      <% var recentAudit = []; try { recentAudit = require('../utils/auditLogger').getAll(5); } catch(e) {} %>
+      <% if(!recentAudit||!recentAudit.length){%>
+      <div style="text-align:center;padding:16px 0;color:var(--text3);font-size:12px;">No recent activity</div>
+      <%}else{recentAudit.forEach(function(log){%>
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">
+        <span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:<%= log.action&&log.action.indexOf('FAILED')>=0?'var(--danger)':log.action&&log.action.indexOf('DELETED')>=0?'var(--warning)':'var(--success)' %>;"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= log.action %></div>
+          <div style="font-size:10px;color:var(--text3);"><%= log.actor||'—' %> &bull; <%= log.ts?new Date(log.ts).toLocaleTimeString():'—' %></div>
+        </div>
+      </div>
+      <%});%>
+      <%}%>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /content -->
+
+
+<script>
+// ── Domain Info Auto-Refresh ─────────────────────────────────────────────
+async function refreshDomainInfo() {
+  var btn = document.getElementById('domainRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    var r = await fetch('/dashboard/api/domain');
+    var d = await r.json();
+    if (d.ok && d.domainInfo) {
+      var di = d.domainInfo;
+      var fieldMap = {
+        'Computer Name':    di.computerName,
+        'Hostname':         di.computerName && di.dnsRoot ? di.computerName + '.' + di.dnsRoot : di.computerName,
+        'Domain Name':      di.dnsRoot,
+        'NetBIOS':          di.netbios,
+        'Domain Controller':di.pdcEmulator,
+        'IP Address':       di.ipAddress,
+        'Operating System': di.osName,
+        'Server Version':   di.osBuild ? 'Build ' + di.osBuild + ' (' + (di.osVersion||'') + ')' : null,
+        'CPU':              di.cpuName ? di.cpuName + ' (' + (di.cpuCores||'?') + ' cores)' : null,
+        'Memory':           di.totalMemoryGB ? ((di.usedMemoryGB||'?') + ' / ' + di.totalMemoryGB + ' GB used') : null,
+        'Disk':             di.diskInfo,
+        'Uptime':           di.uptimeHours ? (di.uptimeHours >= 24 ? Math.floor(di.uptimeHours/24)+'d ' : '') + Math.floor(di.uptimeHours%24)+'h' : null,
+        'Domain Mode':      di.domainMode,
+        'Forest Mode':      di.forestMode,
+        'AD Version':       di.adVersion,
+        'DC Time':          di.currentDCTime ? new Date(di.currentDCTime).toLocaleString() : null,
+      };
+      // Also fill service account section
+    document.querySelectorAll('.di-fill').forEach(function(el) {
+      var key = el.getAttribute('data-field');
+      if (!key) return;
+      var val = di[key];
+      if (key === 'sites' && Array.isArray(val)) val = val.length + ' site(s)';
+      if (key === 'created' && val) val = new Date(val).toLocaleDateString('en-GB');
+      el.textContent = val || '—';
+    });
+    document.querySelectorAll('#domainInfoBody .info-kv').forEach(function(row) {
+        var key = row.getAttribute('data-field');
+        if (key && fieldMap[key] !== undefined) {
+          var val = fieldMap[key];
+          row.querySelector('.info-v').innerHTML = val || '<span style="color:var(--text4)">N/A</span>';
+        }
+      });
+    }
+  } catch(e) { console.warn('Domain info refresh failed:', e.message); }
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+}
+// Auto-load domain info 2s after page loads (non-blocking)
+setTimeout(refreshDomainInfo, 2000);
+
+// ── Clock ─────────────────────────────────────────────────────────────────
+(function tick(){
+  var now=new Date();
+  var t=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  var d=now.toLocaleDateString([],{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  var bc=document.getElementById('big-clock'),bd=document.getElementById('big-date');
+  if(bc)bc.textContent=t;
+  if(bd)bd.textContent=d;
+  setTimeout(tick,1000);
+})();
+
+// ── Calendar Popup ────────────────────────────────────────────────────────
+var calState={year:new Date().getFullYear(),month:new Date().getMonth(),events:[]};
+var MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+var EVT_COLORS={event:'var(--primary)',maintenance:'var(--warning)',holiday:'var(--success)'};
+
+function escH(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+
+function toggleCal(ev){
+  var pop=document.getElementById('calPopup');
+  if(pop.style.display==='block'){pop.style.display='none';return;}
+  // Position near the date display
+  var rect=(ev&&ev.currentTarget)?ev.currentTarget.getBoundingClientRect():{top:60,right:window.innerWidth-20};
+  pop.style.display='block';
+  pop.style.top=(rect.bottom+8)+'px';
+  pop.style.right=(window.innerWidth-rect.right)+'px';
+  pop.style.left='auto';
+  loadCalEvents();
+}
+
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('calPopup'),evtM=document.getElementById('evtModal');
+  if(pop&&pop.style.display==='block'&&!pop.contains(e.target)&&!e.target.closest('.clock-wrap')&&!e.target.closest('[onclick="toggleCal(event)"]')){
+    pop.style.display='none';
+  }
+});
+
+async function loadCalEvents(){
+  try{
+    var r=await fetch('/dashboard/events?year='+calState.year+'&month='+calState.month);
+    var d=await r.json();
+    calState.events=d.ok?d.events:[];
+  }catch(e){calState.events=[];}
+  renderCalGrid();
+}
+
+function renderCalGrid(){
+  var label=document.getElementById('calMonthLabel');
+  if(label)label.textContent=MONTH_NAMES[calState.month]+' '+calState.year;
+  var firstDay=new Date(calState.year,calState.month,1).getDay();
+  var daysInMonth=new Date(calState.year,calState.month+1,0).getDate();
+  var grid=document.getElementById('calGrid');
+  if(!grid)return;
+  grid.innerHTML='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){
+    var c=document.createElement('div');c.className='cal-dow';c.textContent=d;grid.appendChild(c);
+  });
+  for(var i=0;i<firstDay;i++){grid.appendChild(document.createElement('div'));}
+  var today=new Date(),todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  for(var day=1;day<=daysInMonth;day++){
+    var ds=calState.year+'-'+String(calState.month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    var evs=calState.events.filter(function(e){return e.date===ds;});
+    var cell=document.createElement('div');
+    cell.className='cal-day'+(ds===todayStr?' cal-today':'');
+    cell.setAttribute('data-date',ds);
+    var dn=document.createElement('div');dn.textContent=day;cell.appendChild(dn);
+    if(evs.length){var dot=document.createElement('div');dot.className='cal-dot';cell.appendChild(dot);}
+    cell.addEventListener('click',function(){showDayEvts(this.getAttribute('data-date'));});
+    grid.appendChild(cell);
+  }
+}
+
+function showDayEvts(dateStr){
+  var panel=document.getElementById('calDayEvents');
+  var evs=calState.events.filter(function(e){return e.date===dateStr;});
+  var d=new Date(dateStr+'T00:00:00');
+  panel.style.display='block';
+  panel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div style="font-size:11px;font-weight:600;">'+d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'})+'</div><button class="btn btn-secondary btn-sm" onclick="openEvtModal(null,\''+dateStr+'\')">+</button></div>';
+  if(!evs.length){panel.innerHTML+='<div style="font-size:11px;color:var(--text3);">No events</div>';return;}
+  evs.forEach(function(ev){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);';
+    var dot=document.createElement('span');
+    dot.style.cssText='width:7px;height:7px;border-radius:50%;flex-shrink:0;background:'+(EVT_COLORS[ev.type]||'var(--primary)')+';';
+    var txt=document.createElement('div');txt.style.cssText='flex:1;font-size:11px;';txt.textContent=ev.title;
+    var btn=document.createElement('button');btn.className='btn btn-secondary btn-sm';btn.style.fontSize='10px';btn.textContent='Edit';
+    btn.setAttribute('data-evt',JSON.stringify(ev));
+    btn.addEventListener('click',function(){openEvtModal(JSON.parse(this.getAttribute('data-evt')),null);});
+    row.appendChild(dot);row.appendChild(txt);row.appendChild(btn);
+    panel.appendChild(row);
+  });
+}
+
+document.getElementById('calPrev').addEventListener('click',function(){
+  calState.month--;if(calState.month<0){calState.month=11;calState.year--;}
+  document.getElementById('calDayEvents').style.display='none';
+  loadCalEvents();
+});
+document.getElementById('calNext').addEventListener('click',function(){
+  calState.month++;if(calState.month>11){calState.month=0;calState.year++;}
+  document.getElementById('calDayEvents').style.display='none';
+  loadCalEvents();
+});
+
+// ── Event CRUD ────────────────────────────────────────────────────────────
+function todayStr(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');}
+
+function openEvtModal(existing,defaultDate){
+  document.getElementById('evtModal').style.display='flex';
+  document.getElementById('evtModalTitle').textContent=existing?'Edit Event':'Add Event';
+  document.getElementById('evtId').value=existing?existing.id:'';
+  document.getElementById('evtDate').value=existing?existing.date:(defaultDate||todayStr());
+  document.getElementById('evtTitle').value=existing?existing.title:'';
+  document.getElementById('evtType').value=existing?existing.type:'event';
+  document.getElementById('evtDesc').value=existing?(existing.description||''):'';
+  document.getElementById('evtDelBtn').style.display=existing?'inline-flex':'none';
+}
+function closeEvtModal(){document.getElementById('evtModal').style.display='none';}
+
+async function saveEvt(){
+  var id=document.getElementById('evtId').value;
+  var payload={date:document.getElementById('evtDate').value,title:document.getElementById('evtTitle').value.trim(),type:document.getElementById('evtType').value,description:document.getElementById('evtDesc').value.trim()};
+  if(!payload.date||!payload.title){alert('Date and title are required.');return;}
+  try{
+    var r=await fetch(id?'/dashboard/events/'+id:'/dashboard/events',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    var d=await r.json();
+    if(d.ok){closeEvtModal();var saved=payload.date;var sm=new Date(saved+'T00:00:00');calState.year=sm.getFullYear();calState.month=sm.getMonth();await loadCalEvents();showDayEvts(saved);}
+    else alert('Error: '+d.error);
+  }catch(e){alert('Error: '+e.message);}
+}
+
+async function deleteEvt(){
+  if(!confirm('Delete this event?'))return;
+  var id=document.getElementById('evtId').value;
+  try{
+    var r=await fetch('/dashboard/events/'+id,{method:'DELETE'});
+    var d=await r.json();
+    if(d.ok){closeEvtModal();await loadCalEvents();}
+    else alert('Error: '+d.error);
+  }catch(e){alert('Error: '+e.message);}
+}
+</script>
+<%- include('../layout-end') %>

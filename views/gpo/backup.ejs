@@ -1,0 +1,345 @@
+<%- include('../layout', { title: 'GPO Backup & Restore', page: 'gpo-backup', admin }) %>
+<style>
+.op-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;}
+.step-indicator{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:10px;}
+.step-running{background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:var(--primary);}
+.step-ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--success);}
+.step-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--danger);}
+.spinner{width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+
+<div class="topbar">
+  <div><div class="topbar-title">GPO Backup & Restore</div><div class="topbar-sub">Backup, restore and export Group Policy Objects</div></div>
+  <div class="topbar-actions"><a href="/gpo" class="btn btn-secondary">← Back to GPOs</a></div>
+</div>
+<div class="content">
+
+<!-- Alert area -->
+<div id="alertArea"></div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- BACKUP CARD -->
+  <div class="op-card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <div style="font-size:14px;font-weight:600;">Backup GPOs</div>
+    </div>
+
+    <div class="form-group">
+      <label>Backup Destination Path</label>
+      <input type="text" id="backupPath" value="<%= defaultPath %>" placeholder="C:\GPOBackups"/>
+      <span class="form-hint">Local path on this DC where backups will be saved</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom:16px;">
+      <label>Which GPO to backup</label>
+      <select id="backupGpoName">
+        <option value="*">— All GPOs —</option>
+        <% policies.forEach(function(p){ var n=p.adGpoName||p.name; if(n){%>
+        <option value="<%= n %>"><%= p.name %></option>
+        <%}});%>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="runBackupBtn" onclick="runBackup()">Run Backup Now</button>
+    <div id="backupStatus" style="margin-top:12px;display:none;"></div>
+
+    <div class="alert alert-info" style="margin-top:14px;margin-bottom:0;font-size:11px;">
+      Uses <code>Backup-GPO</code> which stores settings, ACLs, WMI filters and links. The destination folder is created if it doesn't exist.
+    </div>
+  </div>
+
+  <!-- EXPORT CARD -->
+  <div class="op-card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div style="font-size:14px;font-weight:600;">Export GPO Report</div>
+    </div>
+
+    <div class="form-group">
+      <label>Select GPO to Export</label>
+      <select id="exportGpoName">
+        <option value="">— Select a GPO —</option>
+        <% policies.forEach(function(p){ var n=p.adGpoName||p.name; if(n){%>
+        <option value="<%= n %>"><%= p.name %></option>
+        <%}});%>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom:16px;">
+      <label>Report Format</label>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="exportFmt" value="HTML" checked> HTML (readable)</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="exportFmt" value="XML"> XML (importable)</label>
+      </div>
+    </div>
+
+    <button class="btn btn-success" id="exportBtn" onclick="exportGPO()">Export & Download</button>
+    <div id="exportStatus" style="margin-top:10px;font-size:12px;color:var(--text3);display:none;"></div>
+  </div>
+</div>
+
+<!-- RESTORE CARD -->
+<div class="op-card" style="margin-bottom:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+      <div style="font-size:14px;font-weight:600;">Restore GPOs from Backup</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;">
+    <div class="form-group" style="flex:1;margin-bottom:0;">
+      <label>Backup Source Path</label>
+      <input type="text" id="restorePath" value="<%= defaultPath %>" placeholder="C:\GPOBackups"/>
+    </div>
+    <button class="btn btn-secondary" id="loadBackupsBtn" onclick="loadBackups()">Load Available Backups</button>
+  </div>
+
+  <div id="backupLoadingArea" style="display:none;padding:20px;text-align:center;">
+    <div class="spinner" style="margin:0 auto;width:20px;height:20px;"></div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text3);">Loading backups from folder...</div>
+  </div>
+
+  <div id="backupListArea" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:600;" id="backupListTitle"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-secondary btn-sm" onclick="selectAllBackups(true)">Select All</button>
+        <button class="btn btn-secondary btn-sm" onclick="selectAllBackups(false)">Clear All</button>
+        <button class="btn btn-warning btn-sm" onclick="restoreSelected()">Restore Selected</button>
+        <button class="btn btn-secondary btn-sm" onclick="restoreAll()">Restore All</button>
+      </div>
+    </div>
+    <div id="backupList"></div>
+    <div id="restoreStatusArea" style="margin-top:12px;display:none;"></div>
+  </div>
+
+  <div class="alert alert-warning" style="margin-top:14px;margin-bottom:0;font-size:11px;">
+    <strong>Warning:</strong> Restore overwrites the GPO's current settings with the backup version. It does <em>not</em> restore links if they were deleted. Perform this only when recovery is needed.
+  </div>
+</div>
+
+<!-- BACKUP HISTORY -->
+<div class="card">
+  <div class="card-header">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span class="card-title">Operation History</span>
+    <% if(history&&history.length){%><span class="badge badge-neutral" style="margin-left:auto;font-size:10px;"><%= history.length %> entries</span><%}%>
+  </div>
+  <div class="card-body">
+    <% if(!history||!history.length){%>
+    <div class="empty-state" style="padding:24px;"><p>No backup or restore operations have been performed yet</p></div>
+    <%}else{%>
+    <table><thead><tr><th>Time</th><th>Action</th><th>Scope</th><th>Path</th><th>Status</th><th>Result</th><th>Performed By</th></tr></thead><tbody>
+    <% history.slice(0,20).forEach(function(h){%>
+    <tr>
+      <td class="mono text-muted" style="font-size:10px;white-space:nowrap;"><%= new Date(h.timestamp).toLocaleString() %></td>
+      <td><span class="badge <%= h.action==='backup'?'badge-info':h.action==='restore'?'badge-warned':'badge-purple' %>"><%= h.action.toUpperCase() %></span></td>
+      <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= h.gpo||'All GPOs' %></td>
+      <td class="mono text-muted" style="font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="<%= h.path||'' %>"><%= h.path||'—' %></td>
+      <td><span class="badge <%= h.status==='completed'?'badge-active':h.status==='partial'?'badge-warned':'badge-disabled' %>"><%= h.status %></span></td>
+      <td class="text-muted" style="font-size:11px;">
+        <%if(h.count!==undefined){%><%= h.count %> backed up<%}%>
+        <%if(h.restored!==undefined){%><%= h.restored %> restored<%if(h.failed){%>, <%= h.failed %> failed<%}%><%}%>
+        <%if(h.error){%><span style="color:var(--danger);" title="<%= h.error %>"><%= h.error.substring(0,50) %>...</span><%}%>
+      </td>
+      <td class="text-muted" style="font-size:11px;"><%= h.actor||'—' %></td>
+    </tr>
+    <%});%>
+    </tbody></table>
+    <%}%>
+  </div>
+</div>
+
+</div>
+
+<script>
+function escH(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+
+function showAlert(type,msg){
+  var a=document.getElementById('alertArea');
+  a.innerHTML='<div class="alert alert-'+type+'" style="margin-bottom:16px;">'+escH(msg)+'</div>';
+  setTimeout(function(){a.innerHTML='';},8000);
+}
+
+function setStep(el,state,msg){
+  el.style.display='block';
+  el.className='step-indicator step-'+state;
+  el.innerHTML=(state==='running'?'<div class="spinner"></div>':'<span>'+(state==='ok'?'✓':'✗')+'</span>')+' <span>'+escH(msg)+'</span>';
+}
+
+// ── BACKUP ─────────────────────────────────────────────────────────────────
+async function runBackup(){
+  var gpoName=document.getElementById('backupGpoName').value;
+  var backupPath=document.getElementById('backupPath').value.trim();
+  if(!backupPath){alert('Enter a backup destination path.');return;}
+  var label=gpoName==='*'?'all GPOs':'"'+gpoName+'"';
+  if(!confirm('Back up '+label+' to:\n'+backupPath+'\n\nThis may take 10-30 seconds. Continue?'))return;
+
+  var btn=document.getElementById('runBackupBtn');
+  var statusDiv=document.getElementById('backupStatus');
+  btn.disabled=true; btn.textContent='Backing up...';
+  setStep(statusDiv,'running','Connecting to AD and running Backup-GPO...');
+
+  try{
+    var r=await fetch('/gpo/backup/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backupPath:backupPath,gpoName:gpoName})});
+    var d=await r.json();
+    if(d.ok){
+      var msg=(d.count||0)+' GPO(s) backed up to '+backupPath;
+      setStep(statusDiv,'ok',msg);
+      showAlert('success',msg);
+      setTimeout(function(){location.reload();},2000);
+    } else {
+      setStep(statusDiv,'err',d.error||'Backup failed');
+    }
+  }catch(e){
+    setStep(statusDiv,'err','Error: '+e.message);
+  }
+  btn.disabled=false; btn.textContent='Run Backup Now';
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────────────────
+async function exportGPO(){
+  var gpoName=document.getElementById('exportGpoName').value;
+  var format=document.querySelector('input[name="exportFmt"]:checked').value;
+  var statusEl=document.getElementById('exportStatus');
+  if(!gpoName){alert('Select a GPO to export.');return;}
+  var btn=document.getElementById('exportBtn');
+  btn.disabled=true; btn.textContent='Generating...';
+  statusEl.style.display='block';
+  statusEl.style.color='var(--text3)';
+  statusEl.textContent='Generating '+format+' report for "'+gpoName+'"...';
+  try{
+    var r=await fetch('/gpo/backup/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gpoName:gpoName,format:format})});
+    var d=await r.json();
+    if(d.ok){
+      var bytes=atob(d.content);
+      var arr=new Uint8Array(bytes.length);
+      for(var i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+      var blob=new Blob([arr],{type:format==='XML'?'application/xml':'text/html'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url; a.download=d.filename; a.click();
+      URL.revokeObjectURL(url);
+      statusEl.style.color='var(--success)';
+      statusEl.textContent='✓ Downloaded: '+d.filename;
+    }else{
+      statusEl.style.color='var(--danger)';
+      statusEl.textContent='✗ Export failed: '+d.error;
+    }
+  }catch(e){
+    statusEl.style.color='var(--danger)';
+    statusEl.textContent='Error: '+e.message;
+  }
+  btn.disabled=false; btn.textContent='Export & Download';
+}
+
+// ── RESTORE ────────────────────────────────────────────────────────────────
+async function loadBackups(){
+  var restorePath=document.getElementById('restorePath').value.trim();
+  if(!restorePath){alert('Enter a backup source path first.');return;}
+  var loadBtn=document.getElementById('loadBackupsBtn');
+  var loading=document.getElementById('backupLoadingArea');
+  var listArea=document.getElementById('backupListArea');
+  loadBtn.disabled=true; loadBtn.textContent='Loading...';
+  loading.style.display='block'; listArea.style.display='none';
+  try{
+    var r=await fetch('/gpo/backup/list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backupPath:restorePath})});
+    var d=await r.json();
+    loading.style.display='none';
+    if(!d.ok){showAlert('error','Failed to load backups: '+d.error);return;}
+    renderBackupList(d.backups,restorePath);
+  }catch(e){
+    loading.style.display='none';
+    showAlert('error','Error loading backups: '+e.message);
+  }
+  loadBtn.disabled=false; loadBtn.textContent='Load Available Backups';
+}
+
+function renderBackupList(backups,restorePath){
+  var listArea=document.getElementById('backupListArea');
+  var list=document.getElementById('backupList');
+  var title=document.getElementById('backupListTitle');
+  title.textContent='Found '+backups.length+' backup(s) in: '+restorePath;
+  document.getElementById('restoreStatusArea').style.display='none';
+
+  if(!backups.length){
+    list.innerHTML='<div class="empty-state" style="padding:20px;"><p>No GPO backups found in this folder. Run a backup first.</p></div>';
+    listArea.style.display='block';
+    return;
+  }
+
+  list.innerHTML='';
+  var tbl=document.createElement('table');
+  var thead=document.createElement('thead');
+  thead.innerHTML='<tr><th style="width:36px;"><input type="checkbox" title="Select all" onchange="selectAllBackups(this.checked)"></th><th>GPO Name</th><th>Domain</th><th>Backup ID</th><th>Backed Up At</th></tr>';
+  tbl.appendChild(thead);
+  var tbody=document.createElement('tbody');
+  backups.forEach(function(b){
+    var tr=document.createElement('tr');
+    var chk=document.createElement('input');
+    chk.type='checkbox'; chk.className='backup-chk'; chk.value=b.backupId||'';
+    var td0=document.createElement('td'); td0.appendChild(chk);
+    var td1=document.createElement('td'); td1.style.cssText='font-size:12px;font-weight:500;'; td1.textContent=b.gpoName||'—';
+    var td2=document.createElement('td'); td2.style.cssText='font-size:11px;color:var(--text3);'; td2.textContent=b.domain||'—';
+    var td3=document.createElement('td'); td3.style.cssText='font-family:var(--mono);font-size:10px;color:var(--text3);'; td3.textContent=(b.backupId||'').substring(0,8)+'...';
+    td3.title=b.backupId||'';
+    var td4=document.createElement('td'); td4.style.cssText='font-size:11px;color:var(--text3);';
+    td4.textContent=b.timestamp?new Date(b.timestamp).toLocaleString():'—';
+    tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  list.appendChild(tbl);
+  listArea.style.display='block';
+}
+
+function selectAllBackups(checked){
+  document.querySelectorAll('.backup-chk').forEach(function(c){c.checked=checked;});
+}
+
+async function restoreSelected(){
+  var selected=Array.from(document.querySelectorAll('.backup-chk:checked')).map(function(c){return c.value;}).filter(Boolean);
+  if(!selected.length){alert('Select at least one backup to restore.');return;}
+  if(!confirm('Restore '+selected.length+' GPO(s)?\n\nThis will OVERWRITE current GPO settings with the backup version.'))return;
+  await doRestore(selected,false);
+}
+
+async function restoreAll(){
+  if(!confirm('Restore ALL GPOs from this backup folder?\n\nThis will overwrite ALL current GPO settings.'))return;
+  await doRestore([],true);
+}
+
+async function doRestore(ids,all){
+  var restorePath=document.getElementById('restorePath').value.trim();
+  var statusArea=document.getElementById('restoreStatusArea');
+  statusArea.style.display='block';
+  setStep(statusArea,'running','Restoring GPOs — this may take 30-60 seconds...');
+  try{
+    var body={backupPath:restorePath,restoreAll:all?'1':'0',backupIds:ids};
+    var r=await fetch('/gpo/backup/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var d=await r.json();
+    if(d.ok){
+      var msg=(d.restored||0)+' GPO(s) restored successfully';
+      if(d.failed>0) msg+=', '+d.failed+' failed';
+      setStep(statusArea,d.failed>0?'err':'ok',msg);
+      if(d.errors&&d.errors.length){
+        var ul=document.createElement('ul');
+        ul.style.cssText='margin-top:8px;font-size:11px;color:var(--danger);';
+        d.errors.forEach(function(e){var li=document.createElement('li');li.textContent=e;ul.appendChild(li);});
+        statusArea.appendChild(ul);
+      }
+      showAlert(d.failed>0?'warning':'success',msg);
+      setTimeout(function(){location.reload();},3000);
+    }else{
+      setStep(statusArea,'err','Restore failed: '+d.error);
+    }
+  }catch(e){
+    setStep(statusArea,'err','Error: '+e.message);
+  }
+}
+</script>
+<%- include('../layout-end') %>

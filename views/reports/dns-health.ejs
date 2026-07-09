@@ -1,0 +1,27 @@
+<%- include('../layout', { title: 'DNS Health Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">DNS Health Report</div><div class="topbar-sub">DNS server and zone status</div></div>
+<div class="topbar-actions"><a href="/reports/export/dns-health" class="btn btn-primary">Export CSV</a><a href="/services" class="btn btn-secondary">AD Services</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!services || !services.dns){%>
+<div class="empty-state" style="padding:32px;"><p>No DNS data available. Visit the AD Services page to run a scan.</p></div>
+<%}else{%>
+<div class="stat-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px;">
+  <div class="stat-card <%= services.dns.installed?'success':'danger' %>"><div class="stat-label">DNS Service</div><div class="stat-value" style="font-size:18px;"><%= services.dns.installed?'✅ Installed':'❌ Not Found' %></div></div>
+  <div class="stat-card"><div class="stat-label">Total Zones</div><div class="stat-value" style="color:var(--text)"><%= services.dns.totalZones||0 %></div></div>
+</div>
+<% if(services.dns.zones && services.dns.zones.length){%>
+<div class="card"><div class="card-body"><table><thead><tr><th>Zone Name</th><th>Type</th><th>Reverse Lookup</th><th>AD Integrated</th></tr></thead><tbody>
+<% for(var i=0;i<services.dns.zones.length;i++){var z=services.dns.zones[i];%>
+<tr>
+  <td style="font-size:12px;font-weight:500;"><%= z.ZoneName||z.name||'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= z.ZoneType||z.type||'—' %></td>
+  <td><span class="badge <%= z.IsReverseLookupZone?'badge-neutral':'badge-info' %>" style="font-size:10px;"><%= z.IsReverseLookupZone?'Yes':'No' %></span></td>
+  <td><span class="badge <%= z.IsDsIntegrated?'badge-active':'badge-neutral' %>" style="font-size:10px;"><%= z.IsDsIntegrated?'Yes':'No' %></span></td>
+</tr>
+<%}%>
+</tbody></table></div></div>
+<%}%>
+<%}%>
+</div>
+<%- include('../layout-end') %>

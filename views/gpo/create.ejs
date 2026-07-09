@@ -1,0 +1,72 @@
+<%- include('../layout', { title: 'Create Policy', page: 'gpo', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Create Custom Policy</div></div><div class="topbar-actions"><a href="/gpo" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card" style="max-width:720px;"><div class="card-header"><span class="card-title">New Group Policy Object</span></div><div class="card-body" style="padding:18px;">
+<form method="POST" action="/gpo/create" id="gpoForm">
+  <div class="form-row"><div class="form-group"><label>Policy Name *</label><input type="text" name="name" required autofocus placeholder="e.g. Workstation-Security-v1"/></div><div class="form-group"><label>Category</label><input type="text" name="category" placeholder="Security, Compliance..."/></div></div>
+  <div class="form-group"><label>Description</label><input type="text" name="description" placeholder="Brief description"/></div>
+
+  <div class="form-group">
+    <label>Quick-Add Common Settings</label>
+    <div style="display:flex;gap:6px;">
+      <select id="commonSettingSel" style="flex:1;">
+        <option value="">Select a common setting to add...</option>
+        <option value="MinimumPasswordLength|14|Minimum password length requirement">Minimum Password Length</option>
+        <option value="MaximumPasswordAge|60|Maximum password age in days">Maximum Password Age</option>
+        <option value="PasswordComplexity|Enabled|Require complex passwords">Password Complexity</option>
+        <option value="PasswordHistorySize|24|Number of remembered passwords">Password History Size</option>
+        <option value="LockoutThreshold|5|Failed attempts before lockout">Account Lockout Threshold</option>
+        <option value="LockoutDuration|30|Lockout duration in minutes">Account Lockout Duration</option>
+        <option value="ScreensaverTimeout|900|Idle screensaver timeout (seconds)">Screensaver Timeout</option>
+        <option value="UAC|Enabled|User Account Control">UAC (User Account Control)</option>
+        <option value="WindowsFirewall|Enabled|Windows Firewall state">Windows Firewall</option>
+        <option value="SMBSigning|Required|SMB signing requirement">SMB Signing</option>
+        <option value="RDPEnabled|Enabled|Remote Desktop access">Remote Desktop</option>
+        <option value="NLARequired|Enabled|Network Level Authentication for RDP">NLA Required (RDP)</option>
+        <option value="AuditLogon|Success,Failure|Audit logon events">Audit Logon Events</option>
+        <option value="EventLogSize|196608|Event log max size in KB">Event Log Size</option>
+        <option value="AutorunDisabled|Enabled|Disable autorun for removable media">Disable Autorun</option>
+        <option value="WSUSServer|http://wsus.domain.local|WSUS server URL">WSUS Server URL</option>
+        <option value="SmartScreen|Enabled|Browser SmartScreen filter">SmartScreen Filter</option>
+      </select>
+      <button type="button" class="btn btn-secondary" onclick="addCommonSetting()">+ Add</button>
+    </div>
+    <span class="form-hint">Or add a custom setting below</span>
+  </div>
+
+  <div class="form-group"><label>Settings</label>
+    <div id="settings"></div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addSetting('','','')" style="margin-top:6px;">+ Add Custom Setting</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:8px;"><button type="submit" class="btn btn-primary">Create Policy</button><a href="/gpo" class="btn btn-secondary">Cancel</a></div>
+</form></div></div></div>
+
+<script>
+function addSetting(key,val,desc){
+  var container=document.getElementById('settings');
+  var row=document.createElement('div');
+  row.className='setting-row';
+  row.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:6px;';
+
+  var k=document.createElement('input');k.type='text';k.name='settingKey[]';k.placeholder='Registry key / setting name';k.value=key||'';
+  var v=document.createElement('input');v.type='text';v.name='settingValue[]';v.placeholder='Value';v.value=val||'';
+  var d=document.createElement('input');d.type='text';d.name='settingDesc[]';d.placeholder='Description (optional)';d.value=desc||'';
+  var btn=document.createElement('button');btn.type='button';btn.className='btn btn-danger btn-sm';btn.textContent='✕';
+  btn.onclick=function(){row.remove();};
+
+  row.appendChild(k);row.appendChild(v);row.appendChild(d);row.appendChild(btn);
+  container.appendChild(row);
+  return row;
+}
+function addCommonSetting(){
+  var sel=document.getElementById('commonSettingSel');
+  if(!sel.value)return;
+  var parts=sel.value.split('|');
+  addSetting(parts[0],parts[1],parts[2]);
+  sel.value='';
+}
+// Start with one empty row
+addSetting('','','');
+</script>
+<%- include('../layout-end') %>

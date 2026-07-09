@@ -1,0 +1,33 @@
+<%- include('../layout', { title: 'Audit Log', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Audit Log Report</div><div class="topbar-sub">All administrative actions — <%= logs.length %> entries</div></div>
+<div class="topbar-actions">
+  <a href="/reports/export/audit" class="btn btn-primary">Export CSV</a>
+  <button class="btn btn-danger" onclick="clearAudit()">Clear Log</button>
+  <a href="/reports" class="btn btn-secondary">Back</a>
+</div></div>
+<div class="content">
+<div class="card"><div class="card-header"><span class="card-title">Audit Events (<%= logs.length %>)</span>
+  <div class="card-header-actions"><div class="search-box" style="width:200px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" placeholder="Filter events..." oninput="filterLog(this.value)"/></div></div>
+</div>
+<div class="card-body">
+<% if(!logs.length){%><div class="empty-state" style="padding:40px;"><p>No audit events recorded yet</p></div>
+<%}else{%>
+<table id="auditTable">
+<thead><tr><th>Timestamp</th><th>Action</th><th>Actor</th><th>Target</th><th>IP</th></tr></thead>
+<tbody>
+<% for(var i=0;i<logs.length&&i<500;i++){var l=logs[i];%>
+<tr data-search="<%= ((l.action||'')+' '+(l.actor||'')+' '+(l.target||'')).toLowerCase() %>">
+  <td class="mono text-muted" style="font-size:10px;white-space:nowrap;"><%= l.ts ? new Date(l.ts).toLocaleString() : '—' %></td>
+  <td style="font-size:12px;font-weight:500;"><%= l.action||'—' %></td>
+  <td style="font-size:12px;"><%= l.actor||'—' %></td>
+  <td class="mono" style="font-size:11px;color:var(--text3);"><%= l.target||'—' %></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= l.ip||'—' %></td>
+</tr>
+<%}%>
+</tbody></table><%}%>
+</div></div></div>
+<script>
+function filterLog(q){document.querySelectorAll('#auditTable tbody tr').forEach(function(r){r.style.display=!q||(r.dataset.search&&r.dataset.search.indexOf(q.toLowerCase())>=0)?'':'none';});}
+async function clearAudit(){if(!confirm('Clear all audit logs permanently?'))return;var r=await fetch('/settings/audit-clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok)location.reload();else alert(d.error);}
+</script>
+<%- include('../layout-end') %>

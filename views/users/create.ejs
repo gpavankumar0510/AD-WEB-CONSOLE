@@ -1,0 +1,72 @@
+<%- include('../layout', { title: 'Create User', page: 'users', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Create User</div><div class="topbar-sub">Add a new domain user account</div></div><div class="topbar-actions"><a href="/users" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="card" style="max-width:600px;"><div class="card-header"><span class="card-title">New User Account</span></div><div class="card-body" style="padding:20px;">
+<form method="POST" action="/users/create">
+  <div class="form-row"><div class="form-group"><label>First Name *</label><input type="text" name="firstName" required autofocus/></div><div class="form-group"><label>Last Name *</label><input type="text" name="lastName" required/></div></div>
+  <div class="form-row"><div class="form-group"><label>Username (sAMAccountName) *</label><input type="text" name="username" required placeholder="jsmith"/></div><div class="form-group"><label>Display Name</label><input type="text" name="displayName" placeholder="John Smith"/></div></div>
+  <div class="form-row"><div class="form-group"><label>Email</label><input type="email" name="email" placeholder="jsmith@domain.local"/></div><div class="form-group"><label>Phone</label><input type="text" name="phone" placeholder="+1 555 1234"/></div></div>
+  <div class="form-row"><div class="form-group"><label>Department</label><input type="text" name="department" placeholder="IT, Finance..."/></div><div class="form-group"><label>Job Title</label><input type="text" name="title" placeholder="Systems Administrator"/></div></div>
+  <div class="form-group"><label>Password *</label><input type="password" name="password" id="newUserPw" required autocomplete="new-password" placeholder="Min 8 chars, 3 of: upper/lower/number/symbol"/>
+    <div class="pwd-strength"><div class="pwd-strength-bar" id="newUserPwBar"></div></div>
+    <div class="pwd-strength-label" id="newUserPwLabel"></div>
+  </div>
+  <div class="form-group"><label>Organizational Unit</label><select name="ou"><option value="">Default (CN=Users)</option><% for(var i=0;i<ous.length;i++){%><option value="<%= ous[i].distinguishedName %>"><%= ous[i].distinguishedName %></option><%}%></select></div>
+
+  <div class="form-group">
+    <label>Account Options</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;">
+      <label class="checkbox-row"><input type="checkbox" name="mustChangePassword" value="1"/> User must change password at next logon</label>
+      <label class="checkbox-row"><input type="checkbox" name="cannotChangePassword" value="1"/> User cannot change password</label>
+      <label class="checkbox-row"><input type="checkbox" name="passwordNeverExpires" value="1"/> Password never expires</label>
+      <label class="checkbox-row"><input type="checkbox" name="accountDisabled" value="1"/> Account is disabled</label>
+      <label class="checkbox-row"><input type="checkbox" name="smartcardRequired" value="1"/> Smart card required for interactive logon</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="accExpiresToggle" onchange="document.getElementById('accExpiresInput').style.display=this.checked?'block':'none'"/> Account expires
+    </label>
+    <input type="date" name="accountExpires" id="accExpiresInput" style="display:none;margin-top:6px;"/>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:8px;"><button type="submit" class="btn btn-primary">Create User</button><a href="/users" class="btn btn-secondary">Cancel</a></div>
+</form></div></div></div>
+
+<style>
+.checkbox-row{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);cursor:pointer;font-weight:400;}
+.checkbox-row input[type=checkbox]{width:auto;accent-color:var(--primary);cursor:pointer;}
+.pwd-strength{height:4px;background:var(--border2);border-radius:2px;overflow:hidden;margin-top:6px;}
+.pwd-strength-bar{height:100%;width:0%;transition:width .3s,background .3s;border-radius:2px;}
+.pwd-strength-label{font-size:10px;margin-top:3px;color:var(--text3);}
+</style>
+<script>
+function attachPwdStrength(inputId, barId, labelId){
+  var inp=document.getElementById(inputId), bar=document.getElementById(barId), label=document.getElementById(labelId);
+  if(!inp||!bar)return;
+  inp.addEventListener('input',function(){
+    var pw=inp.value;
+    var score=0;
+    score+=Math.min(pw.length*4,40);
+    if(/[a-z]/.test(pw))score+=10;
+    if(/[A-Z]/.test(pw))score+=10;
+    if(/[0-9]/.test(pw))score+=10;
+    if(/[^a-zA-Z0-9]/.test(pw))score+=15;
+    if(pw.length>=12)score+=10;
+    if(pw.length>=16)score+=5;
+    score=Math.min(score,100);
+    bar.style.width=score+'%';
+    var color=score<30?'var(--danger)':score<60?'var(--warning)':score<85?'var(--info)':'var(--success)';
+    bar.style.background=color;
+    if(label){
+      var text=score<30?'Weak':score<60?'Fair':score<85?'Good':'Strong';
+      label.textContent=pw?text+' password':'';
+      label.style.color=color;
+    }
+  });
+}
+</script>
+<script>attachPwdStrength('newUserPw','newUserPwBar','newUserPwLabel');</script>
+<%- include('../layout-end') %>

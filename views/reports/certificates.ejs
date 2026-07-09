@@ -1,0 +1,28 @@
+<%- include('../layout', { title: 'Certificate Expiry Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Certificate Expiry Report</div><div class="topbar-sub">LDAPS, DC, IIS, AD CS and service certificates</div></div>
+<div class="topbar-actions"><a href="/reports/export/certificates" class="btn btn-primary">Export CSV</a><a href="/certificates" class="btn btn-secondary">Manage Certificates</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!data){%>
+<div class="empty-state" style="padding:32px;"><p>No certificate scan data yet. Visit the Certificates page and run a scan.</p></div>
+<%}else{%>
+<div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px;">
+  <div class="stat-card danger"><div class="stat-label">Expired</div><div class="stat-value"><%= data.summary.expired %></div></div>
+  <div class="stat-card warning"><div class="stat-label">Expiring in 30 Days</div><div class="stat-value"><%= data.summary.expiringSoon %></div></div>
+  <div class="stat-card success"><div class="stat-label">Healthy</div><div class="stat-value"><%= data.summary.healthy %></div></div>
+</div>
+<div class="card"><div class="card-body">
+<table><thead><tr><th>Category</th><th>Subject</th><th>Expires</th><th>Days Left</th></tr></thead><tbody>
+<% for(var i=0;i<data.certs.length;i++){var c=data.certs[i];%>
+<tr>
+  <td><span class="badge badge-neutral" style="font-size:10px;"><%= c.category %></span></td>
+  <td style="font-size:12px;font-weight:500;"><%= c.subject %></td>
+  <td class="text-muted" style="font-size:11px;"><%= new Date(c.notAfter).toLocaleDateString('en-GB') %></td>
+  <td style="font-size:12px;color:<%= c.daysLeft<0?'var(--danger)':c.daysLeft<=30?'var(--warning)':'var(--text)' %>"><%= c.daysLeft %></td>
+</tr>
+<%}%>
+</tbody></table>
+</div></div>
+<%}%>
+</div>
+<%- include('../layout-end') %>

@@ -1,0 +1,23 @@
+<%- include('../layout', { title: 'DC Health Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Domain Controller Health Report</div><div class="topbar-sub"><%= dcs.length %> domain controller(s) detected</div></div>
+<div class="topbar-actions"><a href="/reports/export/dc-health" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card"><div class="card-body">
+<% if(!dcs.length){%><div class="empty-state" style="padding:24px;"><p>No domain controllers detected</p></div>
+<%}else{%>
+<table><thead><tr><th>Name</th><th>IP</th><th>OS</th><th>Status</th><th>Global Catalog</th><th>RODC</th></tr></thead><tbody>
+<% for(var i=0;i<dcs.length;i++){var dc=dcs[i];%>
+<tr>
+  <td style="font-size:12px;font-weight:600;"><%= dc.name %></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= dc.ip||'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= dc.os||'—' %></td>
+  <td><span class="badge <%= dc.responding?'badge-active':'badge-disabled' %>"><%= dc.responding?'Online':'Offline' %></span></td>
+  <td><span class="badge <%= dc.isGC?'badge-info':'badge-neutral' %>"><%= dc.isGC?'Yes':'No' %></span></td>
+  <td><span class="badge <%= dc.isRODC?'badge-locked':'badge-neutral' %>"><%= dc.isRODC?'Yes':'No' %></span></td>
+</tr>
+<%}%>
+</tbody></table>
+<%}%>
+</div></div></div>
+<%- include('../layout-end') %>

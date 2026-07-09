@@ -1,0 +1,25 @@
+<%- include('../layout', { title: 'Replication Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Replication Report</div><div class="topbar-sub">Active Directory replication health</div></div>
+<div class="topbar-actions"><a href="/reports/export/replication" class="btn btn-primary">Export CSV</a><a href="/services" class="btn btn-secondary">AD Services</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!services || !services.replication || !services.replication.checked){%>
+<div class="empty-state" style="padding:32px;"><p>No replication data available. Visit the AD Services page to run a scan.</p></div>
+<%}else{%>
+<div class="alert <%= services.replication.healthy?'alert-success':'alert-error' %>">Replication status: <strong><%= services.replication.healthy?'Healthy':services.replication.failures+' issue(s) detected across replsummary' %></strong></div>
+<div class="stat-grid" style="grid-template-columns:repeat(2,1fr);">
+  <div class="stat-card"><div class="stat-label">Domain Controllers</div><div class="stat-value" style="color:var(--text)"><%= services.replication.dcCount||0 %></div></div>
+  <div class="stat-card <%= services.replication.failures>0?'danger':'success' %>"><div class="stat-label">Replication Failures</div><div class="stat-value"><%= services.replication.failures||0 %></div></div>
+</div>
+<% if(services.fsmo){%>
+<div class="card" style="margin-top:14px;"><div class="card-header"><span class="card-title">FSMO Role Holders</span></div><div class="card-body" style="padding:0 16px;">
+  <div class="settings-row"><span class="text-muted" style="font-size:12px;">PDC Emulator</span><span class="mono" style="font-size:11px;"><%= services.fsmo.PDCEmulator||'—' %></span></div>
+  <div class="settings-row"><span class="text-muted" style="font-size:12px;">RID Master</span><span class="mono" style="font-size:11px;"><%= services.fsmo.RIDMaster||'—' %></span></div>
+  <div class="settings-row"><span class="text-muted" style="font-size:12px;">Infrastructure Master</span><span class="mono" style="font-size:11px;"><%= services.fsmo.InfrastructureMaster||'—' %></span></div>
+  <div class="settings-row"><span class="text-muted" style="font-size:12px;">Schema Master</span><span class="mono" style="font-size:11px;"><%= services.fsmo.SchemaMaster||'—' %></span></div>
+  <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Domain Naming Master</span><span class="mono" style="font-size:11px;"><%= services.fsmo.DomainNamingMaster||'—' %></span></div>
+</div></div>
+<%}%>
+<%}%>
+</div>
+<%- include('../layout-end') %>

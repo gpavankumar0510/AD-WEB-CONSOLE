@@ -1,0 +1,54 @@
+<%- include('../layout', { title: 'Reports', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Reports</div><div class="topbar-sub">Compliance, audit, security and operational reports</div></div>
+<div class="topbar-actions"><a href="/reports/custom" class="btn btn-secondary">Custom Report Builder</a></div></div>
+<div class="content">
+
+<% var groups=[
+  { label: 'Security & Compliance', reports: [
+    {id:'security',icon:'🛡️',title:'Security Report',desc:'Executive security summary across SCAP, logins, certs',exportable:false},
+    {id:'security-compliance',icon:'✅',title:'Security Compliance (SCAP)',desc:'SCAP security scoring and compliance checks',exportable:false},
+    {id:'audit',icon:'🔍',title:'Audit Logs',desc:'All administrative actions and system events',exportable:true},
+    {id:'login-failures',icon:'🚫',title:'Login Failure Report',desc:'Failed and blocked login attempts',exportable:false},
+    {id:'lockouts',icon:'🔒',title:'Account Lockout Report',desc:'Currently locked accounts and unlock history',exportable:false},
+    {id:'certificates',icon:'📜',title:'Certificate Expiry Report',desc:'LDAPS, DC, IIS, AD CS and service certs',exportable:false},
+    {id:'event-errors',icon:'⚠️',title:'Event Error Report',desc:'Failed operations and error events',exportable:false},
+    {id:'gdpr',icon:'📋',title:'GDPR Report',desc:'User data inventory for GDPR compliance',exportable:false},
+  ]},
+  { label: 'Infrastructure Health', reports: [
+    {id:'ad-health',icon:'🩺',title:'AD Health Report',desc:'Latest pre-migration assessment results',exportable:false},
+    {id:'dc-health',icon:'🖥️',title:'DC Health Report',desc:'Domain controller status and roles',exportable:false},
+    {id:'replication',icon:'🔁',title:'Replication Report',desc:'Active Directory replication health',exportable:false},
+    {id:'dns-health',icon:'🌐',title:'DNS Health Report',desc:'DNS server and zone status',exportable:false},
+    {id:'backup',icon:'💾',title:'Backup Report',desc:'Backup history, status and destinations',exportable:false},
+  ]},
+  { label: 'Users & Policy', reports: [
+    {id:'user-activity',icon:'👤',title:'User Activity Report',desc:'User login, modification and deletion events',exportable:false},
+    {id:'group-membership',icon:'👥',title:'Group Membership Report',desc:'Current group membership across all groups',exportable:true},
+    {id:'password-expiry',icon:'🔑',title:'Password Expiry Report',desc:'Users with expiring or expired passwords',exportable:true},
+    {id:'gpo',icon:'📐',title:'Group Policy Report',desc:'All console GPOs, settings count and AD sync status',exportable:false},
+  ]},
+]; %>
+
+<% for(var gi=0;gi<groups.length;gi++){var grp=groups[gi];%>
+<div style="margin-bottom:22px;">
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px;"><%= grp.label %></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;">
+  <% for(var i=0;i<grp.reports.length;i++){var r2=grp.reports[i];%>
+  <div class="card" style="cursor:pointer;transition:var(--transition);" onclick="window.location='/reports/<%= r2.id %>'" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+    <div class="card-body" style="padding:18px;">
+      <div style="font-size:28px;margin-bottom:10px;"><%= r2.icon %></div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:5px;"><%= r2.title %></div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;min-height:32px;"><%= r2.desc %></div>
+      <div style="display:flex;gap:6px;" onclick="event.stopPropagation()">
+        <a href="/reports/<%= r2.id %>" class="btn btn-secondary btn-sm">View Report</a>
+        <% if(r2.exportable){%><a href="/reports/export/<%= r2.id %>" class="btn btn-primary btn-sm">Export CSV</a><%}%>
+      </div>
+    </div>
+  </div>
+  <%}%>
+  </div>
+</div>
+<%}%>
+
+</div>
+<%- include('../layout-end') %>

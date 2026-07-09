@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Verify MFA | AD Web Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#070a0f;--surface:#0d1117;--surface2:#161b27;--border:#1e2535;--border2:#2a3348;
+  --primary:#4f8ef7;--primary-dark:#3a75e0;--primary-glow:rgba(79,142,247,.15);--primary-bright:rgba(79,142,247,.35);
+  --danger:#ef4444;--danger-bg:rgba(239,68,68,.1);--success:#10b981;--success-bg:rgba(16,185,129,.1);
+  --text:#f1f5f9;--text2:#94a3b8;--text3:#475569;--mono:'JetBrains Mono',monospace;--sans:'Inter',system-ui,sans-serif;--radius:8px;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;position:relative;overflow:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(79,142,247,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(79,142,247,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.orb{position:fixed;border-radius:50%;filter:blur(100px);pointer-events:none;}
+.orb1{width:400px;height:400px;background:rgba(79,142,247,.08);top:-100px;right:-100px;}
+.wrap{width:100%;max-width:380px;position:relative;z-index:1;}
+.logo-block{text-align:center;margin-bottom:24px;animation:fadeSlide .5s ease both;}
+.logo-icon{width:56px;height:56px;background:linear-gradient(135deg,var(--primary),#6366f1);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 0 32px var(--primary-glow);}
+.logo-icon svg{width:28px;height:28px;stroke:white;fill:none;}
+.logo-title{font-size:18px;font-weight:700;letter-spacing:-.02em;}
+.logo-sub{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:4px;}
+.card{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:28px;box-shadow:0 8px 48px rgba(0,0,0,.4);animation:fadeSlide .5s ease .1s both;}
+h2{font-size:15px;font-weight:700;margin-bottom:3px;}
+.card-sub{font-size:12px;color:var(--text3);margin-bottom:20px;}
+input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:24px;text-align:center;letter-spacing:.4em;padding:14px 11px;outline:none;transition:all .2s;}
+input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow);}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;height:44px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:16px;box-shadow:0 0 20px var(--primary-glow);}
+.btn:hover{background:var(--primary-dark);}
+.alert{padding:10px 13px;border-radius:var(--radius);font-size:12px;margin-bottom:14px;border:1px solid;}
+.alert-error{background:var(--danger-bg);color:var(--danger);border-color:rgba(239,68,68,.3);}
+.hint{font-size:11px;color:var(--text3);text-align:center;margin-top:14px;}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="orb orb1"></div>
+<div class="wrap">
+  <div class="logo-block">
+    <div class="logo-icon"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+    <div class="logo-title">Two-Factor Authentication</div>
+    <div class="logo-sub"><%= username %></div>
+  </div>
+  <div class="card">
+    <h2>Enter authentication code</h2>
+    <p class="card-sub">Open your authenticator app and enter the 6-digit code, or use a backup code.</p>
+    <% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+    <form method="POST" action="/mfa-verify" autocomplete="off">
+      <input type="text" name="token" maxlength="8" pattern="[0-9A-Fa-f]*" placeholder="000000" autofocus required autocomplete="one-time-code"/>
+      <button type="submit" class="btn">Verify</button>
+    </form>
+    <div class="hint">Lost access? Use one of your 8-character backup codes.</div>
+  </div>
+</div>
+</body></html>

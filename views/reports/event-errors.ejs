@@ -1,0 +1,22 @@
+<%- include('../layout', { title: 'Event Error Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Event Error Report</div><div class="topbar-sub">Failed operations and error events from the console audit log</div></div>
+<div class="topbar-actions"><a href="/reports/export/event-errors" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<div class="card"><div class="card-body">
+<% if(!logs.length){%><div class="empty-state" style="padding:24px;"><p>No error events recorded</p></div>
+<%}else{%>
+<table><thead><tr><th>Timestamp</th><th>Event</th><th>Actor</th><th>Target</th><th>Detail</th></tr></thead><tbody>
+<% for(var i=0;i<logs.length;i++){var l=logs[i];%>
+<tr>
+  <td class="mono text-muted" style="font-size:10px;white-space:nowrap;"><%= new Date(l.ts).toLocaleString() %></td>
+  <td><span class="badge badge-disabled" style="font-size:10px;"><%= l.action %></span></td>
+  <td style="font-size:12px;"><%= l.actor||'—' %></td>
+  <td style="font-size:12px;"><%= l.target||'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= l.details||'—' %></td>
+</tr>
+<%}%>
+</tbody></table>
+<%}%>
+</div></div></div>
+<%- include('../layout-end') %>

@@ -1,0 +1,81 @@
+<%- include('../layout', { title: 'Certificate Monitoring', page: 'certificates', admin }) %>
+<div class="topbar">
+  <div><div class="topbar-title">Certificate Monitoring</div><div class="topbar-sub">LDAPS, DC, IIS, AD CS, and service certificate expiry tracking</div></div>
+  <div class="topbar-actions"><button class="btn btn-primary" id="scanBtn" onclick="scanCerts()">Scan Certificates</button></div>
+</div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<div id="resultsArea">
+<% if(!data){%>
+<div class="empty-state" style="padding:40px;">
+  <p>No certificate scan has been run yet. Click "Scan Certificates" to inventory all certificate stores on this server.</p>
+</div>
+<%}else{%>
+
+<div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+  <div class="stat-card"><div class="stat-label">Total Certificates</div><div class="stat-value" style="color:var(--text)"><%= data.summary.total %></div></div>
+  <div class="stat-card danger"><div class="stat-label">Expired</div><div class="stat-value"><%= data.summary.expired %></div></div>
+  <div class="stat-card warning"><div class="stat-label">Expiring in 30 Days</div><div class="stat-value"><%= data.summary.expiringSoon %></div></div>
+  <div class="stat-card success"><div class="stat-label">Healthy</div><div class="stat-value"><%= data.summary.healthy %></div></div>
+</div>
+
+<div class="alert alert-info" style="margin-bottom:14px;">Last scanned: <%= new Date(data.scannedAt).toLocaleString() %></div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">All Certificates (<%= data.certs.length %>)</span></div>
+  <div class="card-body">
+    <% if(!data.certs.length){%>
+    <div class="empty-state" style="padding:24px;"><p>No certificates found in scanned stores.</p></div>
+    <%}else{%>
+    <table>
+      <thead><tr><th>Category</th><th>Subject</th><th>Issuer</th><th>Expires</th><th>Days Left</th><th>Status</th><th>Store</th></tr></thead>
+      <tbody>
+      <% for(var i=0;i<data.certs.length;i++){var c=data.certs[i];
+        var statusBadge = c.daysLeft<0?'badge-disabled':c.daysLeft<=7?'badge-locked':c.daysLeft<=30?'badge-warned':'badge-active';
+        var statusText = c.daysLeft<0?'Expired':c.daysLeft<=7?'Critical':c.daysLeft<=30?'Warning':'Healthy';
+        var statusColor = c.daysLeft<0?'var(--danger)':c.daysLeft<=7?'var(--danger)':c.daysLeft<=30?'var(--warning)':'var(--text)';
+      %>
+      <tr>
+        <td><span class="badge badge-neutral" style="font-size:10px;"><%= c.category %></span></td>
+        <td style="font-size:12px;font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= c.subject %>"><%= c.subject %></td>
+        <td class="text-muted" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= c.issuer %>"><%= c.issuer %></td>
+        <td class="text-muted" style="font-size:11px;"><%= new Date(c.notAfter).toLocaleDateString('en-GB') %></td>
+        <td style="font-size:12px;font-weight:500;color:<%= statusColor %>;"><%= c.daysLeft<0 ? Math.abs(c.daysLeft)+' days ago' : c.daysLeft+' days' %></td>
+        <td><span class="badge <%= statusBadge %>" style="font-size:10px;"><%= statusText %></span></td>
+        <td class="text-muted" style="font-size:10px;"><%= c.store %></td>
+      </tr>
+      <%}%>
+      </tbody>
+    </table>
+    <%}%>
+  </div>
+</div>
+
+<%}%>
+</div>
+
+</div>
+
+<script>
+async function scanCerts(){
+  var btn=document.getElementById('scanBtn');
+  btn.disabled=true; btn.textContent='Scanning...';
+  var area=document.getElementById('resultsArea');
+  area.innerHTML='<div style="padding:40px;text-align:center;"><div style="width:24px;height:24px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div><div style="margin-top:10px;color:var(--text3);font-size:12px;">Scanning certificate stores (LocalMachine\\My, CA, Root) and IIS bindings...</div></div>';
+  try{
+    var r=await fetch('/certificates/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    if(d.ok){
+      location.reload();
+    } else {
+      area.innerHTML='<div class="alert alert-error">Scan failed: '+d.error+'</div>';
+    }
+  }catch(e){
+    area.innerHTML='<div class="alert alert-error">Error: '+e.message+'</div>';
+  }
+  btn.disabled=false; btn.textContent='Scan Certificates';
+}
+</script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<%- include('../layout-end') %>

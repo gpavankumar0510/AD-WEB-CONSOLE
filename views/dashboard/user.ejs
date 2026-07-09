@@ -1,0 +1,193 @@
+<%- include('../layout', { title: 'Dashboard', page: 'dashboard', admin }) %>
+<style>
+.pwd-ring{position:relative;width:140px;height:140px;margin:0 auto;}
+.pwd-ring svg{transform:rotate(-90deg);}
+.pwd-ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+</style>
+<div class="topbar">
+  <div>
+    <div class="topbar-title">Welcome, <%= admin.displayName||admin.username %></div>
+    <div class="topbar-sub" id="domain-sub"><span id="live-clock" style="font-weight:600;color:var(--text2);font-size:13px;"></span></div>
+  </div>
+  <div class="topbar-actions"><a href="/myaccount" class="btn btn-primary">My Account</a></div>
+</div>
+
+<div class="content">
+
+<% if(typeof appSettings!=='undefined' && appSettings.orgAnnouncement && appSettings.orgAnnouncement.trim()){%>
+<div class="alert alert-info animate-slide" style="margin-bottom:16px;">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg>
+  <div><strong><%= appSettings.orgName||'Announcement' %>:</strong> <%= appSettings.orgAnnouncement %></div>
+</div>
+<%}%>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:16px;">
+
+  <!-- Left: profile -->
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div class="card animate-slide">
+      <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span class="card-title">My Profile</span>
+      </div>
+      <% if(user){%>
+      <div class="card-body" style="padding:0 18px;">
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Display Name</span><span style="font-size:12px;font-weight:500;"><%= user.displayName||'—' %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Username</span><span class="mono" style="font-size:12px;"><%= user.sAMAccountName %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Email</span><span style="font-size:12px;"><%= user.mail||'—' %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Department</span><span style="font-size:12px;"><%= user.department||'—' %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Job Title</span><span style="font-size:12px;"><%= user.title||'—' %></span></div>
+        <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Phone</span><span style="font-size:12px;"><%= user.telephoneNumber||'—' %></span></div>
+      </div>
+      <%}else{%>
+      <div class="empty-state" style="padding:24px;"><p>Could not load profile information.</p></div>
+      <%}%>
+    </div>
+
+    <!-- Account status -->
+    <% if(user){%>
+    <% var uac=parseInt(user.userAccountControl||0);var isDisabled=!!(uac&2);var isLocked=user.lockoutTime&&user.lockoutTime!=='0';var neverExpires=!!(uac&0x10000);%>
+    <div class="card animate-slide" style="animation-delay:.05s;">
+      <div class="card-header"><span class="card-title">Account Status</span></div>
+      <div class="card-body" style="padding:0 18px;">
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Status</span><span class="badge <%= isLocked?'badge-locked':isDisabled?'badge-disabled':'badge-active' %>"><%= isLocked?'Locked':isDisabled?'Disabled':'Active' %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">MFA</span><span class="badge <%= mfaStatus?'badge-active':'badge-neutral' %>"><%= mfaStatus?'Enabled':'Not Enabled' %></span></div>
+        <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">Password</span><span class="badge <%= neverExpires?'badge-neutral':'badge-active' %>"><%= neverExpires?'Never Expires':'Expires Periodically' %></span></div>
+      </div>
+    </div>
+    <%}%>
+
+    <!-- Quick actions -->
+    <div class="card animate-slide" style="animation-delay:.1s;">
+      <div class="card-header"><span class="card-title">Quick Actions</span></div>
+      <div class="card-body" style="padding:14px;display:flex;flex-wrap:wrap;gap:8px;">
+        <a href="/myaccount" class="btn btn-primary">View Full Account</a>
+        <a href="/myaccount#change-password" class="btn btn-secondary">Change Password</a>
+        <% if(!mfaStatus){%><a href="/mfa-setup" class="btn btn-secondary">Set Up MFA</a><%}%>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: clock, password expiry ring -->
+  <div style="display:flex;flex-direction:column;gap:14px;">
+
+    <!-- Big clock card -->
+    <div class="card animate-slide">
+      <div class="card-body" style="padding:20px;text-align:center;">
+        <div id="bigClockTime" style="font-size:36px;font-weight:300;font-family:var(--mono);color:var(--text);letter-spacing:.02em;"></div>
+        <div id="bigClockDate" style="font-size:13px;color:var(--text3);margin-top:4px;"></div>
+      </div>
+    </div>
+
+    <div class="card animate-slide" style="animation-delay:.05s;">
+      <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        <span class="card-title">Password Expiry</span>
+      </div>
+      <div class="card-body" style="padding:24px;text-align:center;">
+        <% if(pwdDaysLeft===null){%>
+        <div style="font-size:14px;color:var(--text2);padding:20px 0;">Your password is set to never expire.</div>
+        <%}else{
+          var pct = Math.max(0, Math.min(100, Math.round((pwdDaysLeft/90)*100)));
+          var color = pwdDaysLeft<=0 ? 'var(--danger)' : pwdDaysLeft<=7 ? 'var(--warning)' : 'var(--success)';
+          var circumference = 2*Math.PI*60;
+          var offset = circumference * (1 - pct/100);
+        %>
+        <div class="pwd-ring">
+          <svg width="140" height="140" viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="60" fill="none" stroke="var(--border2)" stroke-width="10"/>
+            <circle cx="70" cy="70" r="60" fill="none" stroke="<%= color %>" stroke-width="10" stroke-dasharray="<%= circumference %>" stroke-dashoffset="<%= offset %>" stroke-linecap="round" style="transition:stroke-dashoffset 1s ease;"/>
+          </svg>
+          <div class="pwd-ring-text">
+            <div style="font-size:28px;font-weight:300;color:<%= color %>;"><%= pwdDaysLeft<=0?'0':pwdDaysLeft %></div>
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">days left</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;font-size:12px;color:<%= color %>;font-weight:500;">
+          <%= pwdDaysLeft<=0 ? 'Your password has expired!' : pwdDaysLeft<=7 ? 'Expires soon — change it now' : 'Expires on '+pwdExpiryDate.toLocaleDateString('en-GB') %>
+        </div>
+        <% if(pwdDaysLeft<=14){%>
+        <a href="/myaccount#change-password" class="btn btn-warning" style="margin-top:14px;width:100%;justify-content:center;">Change Password Now</a>
+        <%}%>
+        <%}%>
+      </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="card animate-slide" style="animation-delay:.08s;">
+      <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span class="card-title" id="calMonthLabel">Calendar</span>
+      </div>
+      <div class="card-body" style="padding:14px;">
+        <div id="calendarGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:11px;"></div>
+      </div>
+    </div>
+
+    <!-- Upcoming Holidays -->
+    <div class="card animate-slide" style="animation-delay:.1s;">
+      <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 00-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+        <span class="card-title">Upcoming Holidays</span>
+      </div>
+      <div class="card-body">
+        <% if(!upcomingHolidays || !upcomingHolidays.length){%>
+        <div class="empty-state" style="padding:16px;"><p>No upcoming holidays configured</p></div>
+        <%}else{%>
+        <table><thead><tr><th>Date</th><th>Holiday</th><th>In</th></tr></thead><tbody>
+        <% for(var hi=0;hi<upcomingHolidays.length;hi++){var h=upcomingHolidays[hi];var hd=new Date(h.date+'T00:00:00');var daysAway=Math.ceil((hd-new Date())/(1000*60*60*24));%>
+        <tr>
+          <td style="font-size:12px;font-weight:500;"><%= hd.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) %></td>
+          <td style="font-size:12px;"><%= h.name %></td>
+          <td><span class="badge <%= daysAway<=7?'badge-locked':'badge-neutral' %>" style="font-size:10px;"><%= daysAway===0?'Today':daysAway+' days' %></span></td>
+        </tr>
+        <%}%>
+        </tbody></table>
+        <%}%>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+function updateClock() {
+  var now = new Date();
+  var timeStr = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  var dateStr = now.toLocaleDateString([], {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  var c1=document.getElementById('live-clock');
+  if(c1)c1.textContent=timeStr+' — '+dateStr;
+  var bigTime=document.getElementById('bigClockTime');
+  var bigDate=document.getElementById('bigClockDate');
+  if(bigTime)bigTime.textContent=timeStr;
+  if(bigDate)bigDate.textContent=dateStr;
+}
+updateClock();setInterval(updateClock,1000);
+
+// Render mini calendar
+(function renderCalendar(){
+  var now=new Date();
+  var year=now.getFullYear(),month=now.getMonth();
+  var monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var label=document.getElementById('calMonthLabel');
+  if(label)label.textContent=monthNames[month]+' '+year;
+
+  var firstDay=new Date(year,month,1).getDay();
+  var daysInMonth=new Date(year,month+1,0).getDate();
+  var grid=document.getElementById('calendarGrid');
+  if(!grid)return;
+
+  var html='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){
+    html+='<div style="color:var(--text3);font-weight:600;padding:4px 0;">'+d+'</div>';
+  });
+  for(var i=0;i<firstDay;i++)html+='<div></div>';
+  for(var day=1;day<=daysInMonth;day++){
+    var isToday=day===now.getDate();
+    html+='<div style="padding:6px 0;border-radius:6px;'+(isToday?'background:var(--primary);color:#fff;font-weight:700;box-shadow:0 0 10px var(--primary-glow);':'color:var(--text2);')+'">'+day+'</div>';
+  }
+  grid.innerHTML=html;
+})();
+</script>
+<%- include('../layout-end') %>

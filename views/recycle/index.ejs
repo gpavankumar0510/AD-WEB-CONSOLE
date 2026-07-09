@@ -1,0 +1,40 @@
+<%- include('../layout', { title: 'Recycle Bin', page: 'recycle', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Recycle Bin</div><div class="topbar-sub">Deleted objects — restored or purged after 30 days</div></div><div class="topbar-actions"><% if(items.length>0){%><button class="btn btn-danger" onclick="emptyBin()">Empty Bin</button><%}%></div></div>
+<div class="content">
+<% if(success){%><div class="alert alert-success"><%= success %></div><%}%>
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+<% if(!items.length){%>
+<div class="card"><div class="empty-state" style="padding:64px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:44px;height:44px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg><p style="font-size:14px;color:var(--text2);margin-top:12px;">Recycle bin is empty</p></div></div>
+<%}else{%>
+<div class="alert alert-info">Objects are kept for <strong>30 days</strong>. Click <strong>Restore</strong> to recreate in AD.</div>
+<% var uc=0,gc=0,cc=0,oc=0,pc=0;items.forEach(function(i){if(i.type==='user')uc++;else if(i.type==='group')gc++;else if(i.type==='computer')cc++;else if(i.type==='ou')oc++;else if(i.type==='gpo')pc++;});%>
+<div class="stat-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">
+  <div class="stat-card info"><div class="stat-label">Users</div><div class="stat-value"><%= uc %></div></div>
+  <div class="stat-card warning"><div class="stat-label">Groups</div><div class="stat-value"><%= gc %></div></div>
+  <div class="stat-card"><div class="stat-label">Computers</div><div class="stat-value" style="color:var(--text)"><%= cc %></div></div>
+  <div class="stat-card"><div class="stat-label">OUs</div><div class="stat-value" style="color:var(--text)"><%= oc %></div></div>
+  <div class="stat-card purple"><div class="stat-label">GPOs</div><div class="stat-value"><%= pc %></div></div>
+</div>
+<div class="card"><div class="card-header"><span class="card-title">Deleted Items (<%= items.length %>)</span></div><div class="card-body">
+<table><thead><tr><th>Type</th><th>Name</th><th>Original DN</th><th>Deleted By</th><th>Expires</th><th>Actions</th></tr></thead><tbody>
+<% for(var i=0;i<items.length;i++){var item=items[i];var canRestore=item.type!=='computer';var daysLeft=Math.max(0,Math.round((new Date(item.expiresAt)-Date.now())/(1000*60*60*24)));var typeColor=item.type==='user'?'badge-info':item.type==='group'?'badge-locked':item.type==='ou'?'badge-active':item.type==='gpo'?'badge-purple':'badge-neutral';%>
+<tr>
+  <td><span class="badge <%= typeColor %>" style="font-size:10px;"><%= item.type.toUpperCase() %></span></td>
+  <td><div style="font-weight:500;font-size:13px;"><%= item.displayName||item.name %></div><div class="mono" style="font-size:10px;color:var(--text3);"><%= item.name %></div></td>
+  <td class="mono text-muted" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= item.dn||'' %>"><%= item.type==='gpo' ? ((item.links||[]).length+' link(s)') : (item.dn||'—') %></td>
+  <td class="text-muted" style="font-size:12px;"><%= item.deletedBy %></td>
+  <td style="font-size:11px;<%= daysLeft<=3?'color:var(--danger);font-weight:500;':'color:var(--warning);' %>"><%= daysLeft %> days</td>
+  <td><div style="display:flex;gap:3px;"><% if(canRestore){%><button class="btn btn-success btn-sm" onclick="restoreItem('<%= item.id %>','<%= (item.displayName||item.name).replace(/'/g,String.fromCharCode(39)) %>','<%= item.type %>')">Restore</button><%}else{%><span class="text-muted" style="font-size:11px;">Re-join DC</span><%}%><button class="btn btn-danger btn-sm" onclick="purgeItem('<%= item.id %>','<%= (item.displayName||item.name).replace(/'/g,String.fromCharCode(39)) %>')">Purge</button></div></td>
+</tr>
+<%}%></tbody></table></div></div><%}%></div>
+
+<div class="modal-overlay" id="restoreModal"><div class="modal"><div class="modal-header"><span class="modal-title">Restore Result</span></div><div class="modal-body" id="restoreResult"></div><div class="modal-footer"><button class="btn btn-primary" onclick="closeRestoreModal()">OK</button></div></div></div>
+
+<script>
+async function restoreItem(id,name,type){if(!confirm('Restore "'+name+'" ('+type+') to Active Directory?'))return;var r=await fetch('/recycle/'+id+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();var modal=document.getElementById('restoreModal');var result=document.getElementById('restoreResult');modal.classList.add('open');if(d.ok){result.innerHTML='<div class="alert alert-success" style="margin:0;">'+d.message+'</div>';setTimeout(function(){location.reload();},4000);}else{result.innerHTML='<div class="alert alert-error" style="margin:0;">Restore failed: '+d.error+'</div>';}}
+function closeRestoreModal(){document.getElementById('restoreModal').classList.remove('open');location.reload();}
+async function purgeItem(id,name){if(!confirm('PERMANENTLY remove "'+name+'"?\nCannot be undone.'))return;var r=await fetch('/recycle/'+id+'/purge',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok)location.reload();else alert(d.error);}
+async function emptyBin(){if(!confirm('Delete ALL items permanently?\nCannot be undone.'))return;var r=await fetch('/recycle/empty',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();if(d.ok)location.reload();else alert(d.error);}
+document.getElementById('restoreModal').addEventListener('click',function(e){if(e.target===this)closeRestoreModal();});
+</script>
+<%- include('../layout-end') %>

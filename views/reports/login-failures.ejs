@@ -1,0 +1,20 @@
+<%- include('../layout', { title: 'Login Failure Report', page: 'reports', admin }) %>
+<div class="topbar"><div><div class="topbar-title">Login Failure Report</div><div class="topbar-sub"><%= logs.length %> failed/blocked login attempts</div></div>
+<div class="topbar-actions"><a href="/reports/export/login-failures" class="btn btn-primary">Export CSV</a><a href="/reports" class="btn btn-secondary">Back</a></div></div>
+<div class="content">
+<div class="card"><div class="card-body">
+<% if(!logs.length){%><div class="empty-state" style="padding:32px;"><p>No failed login attempts recorded</p></div>
+<%}else{%>
+<table><thead><tr><th>Timestamp</th><th>Type</th><th>Username Attempted</th><th>Detail</th><th>IP</th></tr></thead><tbody>
+<% for(var i=0;i<logs.length;i++){var l=logs[i];%>
+<tr>
+  <td class="mono text-muted" style="font-size:10px;white-space:nowrap;"><%= l.ts ? new Date(l.ts).toLocaleString() : '—' %></td>
+  <td><span class="badge <%= l.action==='LOGIN_BLOCKED'?'badge-disabled':'badge-locked' %>"><%= l.action==='LOGIN_BLOCKED'?'Blocked (IP Banned)':'Failed' %></span></td>
+  <td style="font-size:12px;font-weight:500;"><%= l.target||'—' %></td>
+  <td class="text-muted" style="font-size:11px;"><%= l.details||'—' %></td>
+  <td class="mono text-muted" style="font-size:11px;"><%= l.ip||'—' %></td>
+</tr>
+<%}%>
+</tbody></table><%}%>
+</div></div></div>
+<%- include('../layout-end') %>

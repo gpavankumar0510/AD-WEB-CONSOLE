@@ -1,0 +1,252 @@
+<%- include('../layout', { title: policy.name, page: 'gpo', admin }) %>
+<div class="topbar">
+  <div>
+    <div class="topbar-title"><%= policy.name %></div>
+    <div class="topbar-sub"><%= policy.category||'Custom' %> &mdash; <%= (policy.settings||[]).length %> settings &mdash; <%= links.length %> link(s)</div>
+  </div>
+  <div class="topbar-actions">
+    <% if(policy.adGpoId){%>
+    <button class="btn btn-secondary" onclick="loadADSettings(this)">Load AD Settings</button>
+    <a href="/services/gpo-export/<%= encodeURIComponent(policy.adGpoId) %>/html" class="btn btn-secondary">Export HTML</a>
+    <a href="/services/gpo-export/<%= encodeURIComponent(policy.adGpoId) %>/xml" class="btn btn-secondary">Export XML</a>
+    <%}%>
+    <button class="btn btn-danger" onclick="delPolicy()">Delete</button>
+    <a href="/gpo" class="btn btn-secondary">Back</a>
+  </div>
+</div>
+<div class="content">
+<% if(created){%><div class="alert alert-success">Policy created successfully.</div><%}%>
+<% if(typeof success!=='undefined'&&success){%><div class="alert alert-success"><%= success %></div><%}%>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:14px;">
+  <div style="display:flex;flex-direction:column;gap:12px;">
+
+    <div id="adSettingsPanel" style="display:none;" class="card">
+      <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span class="card-title">Live Settings from Windows AD</span>
+        <span class="badge badge-info" style="margin-left:8px;" id="adSettingsCount">0 settings</span>
+        <button class="btn btn-secondary btn-sm" style="margin-left:auto;" onclick="document.getElementById('adSettingsPanel').style.display='none'">Close</button>
+      </div>
+      <div class="card-body" id="adSettingsBody" style="max-height:300px;overflow-y:auto;">
+        <div style="padding:20px;text-align:center;color:var(--text3);">Loading...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <span class="card-title">Console Policy Settings</span>
+      </div>
+      <div class="card-body" style="padding:16px;">
+        <form method="POST" action="/gpo/<%= policy.id %>/update" id="gpoUpdateForm">
+          <div class="form-row">
+            <div class="form-group"><label>Policy Name</label><input type="text" name="name" value="<%= policy.name %>" required/></div>
+            <div class="form-group"><label>Description</label><input type="text" name="description" value="<%= policy.description||'' %>"/></div>
+          </div>
+
+          <div class="form-group">
+            <label>Quick-Add Common Settings</label>
+            <div style="display:flex;gap:6px;">
+              <select id="commonSettingSel" style="flex:1;">
+                <option value="">Select a common setting to add...</option>
+                <option value="MinimumPasswordLength|14|Minimum password length requirement">Minimum Password Length</option>
+                <option value="MaximumPasswordAge|60|Maximum password age in days">Maximum Password Age</option>
+                <option value="PasswordComplexity|Enabled|Require complex passwords">Password Complexity</option>
+                <option value="PasswordHistorySize|24|Number of remembered passwords">Password History Size</option>
+                <option value="LockoutThreshold|5|Failed attempts before lockout">Account Lockout Threshold</option>
+                <option value="LockoutDuration|30|Lockout duration in minutes">Account Lockout Duration</option>
+                <option value="ScreensaverTimeout|900|Idle screensaver timeout (seconds)">Screensaver Timeout</option>
+                <option value="UAC|Enabled|User Account Control">UAC (User Account Control)</option>
+                <option value="WindowsFirewall|Enabled|Windows Firewall state">Windows Firewall</option>
+                <option value="SMBSigning|Required|SMB signing requirement">SMB Signing</option>
+                <option value="RDPEnabled|Enabled|Remote Desktop access">Remote Desktop</option>
+                <option value="NLARequired|Enabled|Network Level Authentication for RDP">NLA Required (RDP)</option>
+                <option value="AuditLogon|Success,Failure|Audit logon events">Audit Logon Events</option>
+                <option value="EventLogSize|196608|Event log max size in KB">Event Log Size</option>
+                <option value="AutorunDisabled|Enabled|Disable autorun for removable media">Disable Autorun</option>
+                <option value="WSUSServer|http://wsus.domain.local|WSUS server URL">WSUS Server URL</option>
+                <option value="SmartScreen|Enabled|Browser SmartScreen filter">SmartScreen Filter</option>
+              </select>
+              <button type="button" class="btn btn-secondary" onclick="addCommonSetting()">+ Add</button>
+            </div>
+          </div>
+
+          <div class="form-group"><label>Settings</label>
+            <div id="settings">
+            <% var settings=policy.settings||[];for(var si=0;si<settings.length;si++){var st=settings[si];%>
+            <div class="setting-row" data-existing="1" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;">
+              <input type="text" name="settingKey[]" value="<%= st.key %>" placeholder="Setting name"/>
+              <input type="text" name="settingValue[]" value="<%= st.value %>" placeholder="Value"/>
+              <input type="text" name="settingDesc[]" value="<%= st.description||'' %>" placeholder="Description"/>
+              <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.setting-row').remove()">✕</button>
+            </div>
+            <%}%>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addSetting('','','')" style="margin-top:6px;">+ Add Custom Setting</button>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Links (<%= links.length %>)</span>
+        <div class="card-header-actions">
+          <select id="linkTarget" style="width:220px;font-size:12px;padding:4px 8px;">
+            <option value="">Link to OU/Domain...</option>
+            <option value="<%= domainDN %>" data-type="Domain">🌐 Domain Root (<%= domainName %>)</option>
+            <% for(var oi=0;oi<ous.length;oi++){%><option value="<%= ous[oi].distinguishedName %>" data-type="OU"><%= ous[oi].distinguishedName %></option><%}%>
+          </select>
+          <select id="linkType" style="font-size:12px;padding:4px 8px;"><option value="OU">OU</option><option value="Domain">Domain</option></select>
+          <button class="btn btn-success btn-sm" onclick="addLink()">Link</button>
+        </div>
+      </div>
+      <div class="card-body" style="max-height:200px;overflow-y:auto;">
+        <% if(!links.length){%><div class="empty-state" style="padding:16px;"><p>Not linked to any OU or domain</p></div>
+        <%}else{%>
+        <table><thead><tr><th>Target</th><th>Type</th><th>AD Synced</th><th></th></tr></thead><tbody>
+        <% for(var li=0;li<links.length;li++){var lnk=links[li];%>
+        <tr>
+          <td class="mono" style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= lnk.target %>"><%= lnk.target %></td>
+          <td><span class="badge badge-neutral" style="font-size:10px;"><%= lnk.targetType %></span></td>
+          <td><span class="badge badge-active" style="font-size:10px;">Yes</span></td>
+          <td><button class="btn btn-danger btn-sm" onclick="removeLink('<%= lnk.id %>')">✕</button></td>
+        </tr>
+        <%}%>
+        </tbody></table>
+        <%}%>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Policy Info</span></div>
+      <div class="card-body" style="padding:0 16px;">
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Status</span><span class="badge <%= policy.status==='Active'?'badge-active':'badge-disabled' %>"><%= policy.status||'Active' %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Category</span><span style="font-size:12px;"><%= policy.category||'Custom' %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Settings count</span><span style="font-size:12px;"><%= (policy.settings||[]).length %></span></div>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Source</span><span class="badge <%= policy.adGpoId?'badge-info':policy.templateId?'badge-neutral':'badge-purple' %>" style="font-size:10px;"><%= policy.adGpoId?'AD Synced':policy.templateId?'Template':'Custom' %></span></div>
+        <% if(policy.adGpoId){%><div class="settings-row"><span class="text-muted" style="font-size:12px;">AD GPO ID</span><span class="mono" style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;" title="<%= policy.adGpoId %>"><%= policy.adGpoId.slice(0,24) %>...</span></div><%}%>
+        <div class="settings-row"><span class="text-muted" style="font-size:12px;">Created</span><span style="font-size:12px;"><%= new Date(policy.createdAt).toLocaleDateString('en-GB') %></span></div>
+        <div class="settings-row" style="border:none;"><span class="text-muted" style="font-size:12px;">By</span><span style="font-size:12px;"><%= policy.createdBy||'—' %></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+var policyId='<%= policy.id %>';
+var policyName='<%= policy.name.replace(/'/g, String.fromCharCode(39)) %>';
+var adGpoId='<%= policy.adGpoId||"" %>';
+
+function addSetting(key,val,desc){
+  var container=document.getElementById('settings');
+  var row=document.createElement('div');
+  row.className='setting-row';
+  row.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;';
+
+  var k=document.createElement('input');k.type='text';k.name='settingKey[]';k.placeholder='Setting name';k.value=key||'';
+  var v=document.createElement('input');v.type='text';v.name='settingValue[]';v.placeholder='Value';v.value=val||'';
+  var d=document.createElement('input');d.type='text';d.name='settingDesc[]';d.placeholder='Description';d.value=desc||'';
+  var btn=document.createElement('button');btn.type='button';btn.className='btn btn-danger btn-sm';btn.textContent='✕';
+  btn.onclick=function(){row.remove();};
+
+  row.appendChild(k);row.appendChild(v);row.appendChild(d);row.appendChild(btn);
+  container.appendChild(row);
+  return row;
+}
+function addCommonSetting(){
+  var sel=document.getElementById('commonSettingSel');
+  if(!sel.value)return;
+  var parts=sel.value.split('|');
+  addSetting(parts[0],parts[1],parts[2]);
+  sel.value='';
+}
+
+async function loadADSettings(btn){
+  if(btn){btn.disabled=true;btn.textContent='Loading...';}
+  var panel=document.getElementById('adSettingsPanel');
+  var body=document.getElementById('adSettingsBody');
+  var countEl=document.getElementById('adSettingsCount');
+  panel.style.display='block';
+  body.innerHTML='<div style="padding:24px;text-align:center;"><div style="width:24px;height:24px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div><div style="margin-top:10px;color:var(--text3);font-size:12px;">Loading settings from Active Directory (this can take up to 60 seconds)...</div></div>';
+
+  var identifier = adGpoId || policyName;
+  try{
+    var r=await fetch('/services/gpo-settings/'+encodeURIComponent(identifier));
+    var d=await r.json();
+    if(d.ok && d.gpo){
+      var gpo=d.gpo;
+      if(gpo.settings && gpo.settings.length){
+        countEl.textContent=gpo.settings.length+' settings';
+        var html='<table><thead><tr><th>Setting Name</th><th>Value / State</th><th></th></tr></thead><tbody>';
+        gpo.settings.forEach(function(s){
+          var safeName=String(s.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+          var safeVal=String(s.value||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+          html+='<tr><td style="font-size:12px;font-weight:500;">'+escapeHtml(s.name)+'</td><td class="mono" style="font-size:11px;color:var(--text2);">'+escapeHtml(String(s.value||'\u2014'))+'</td><td><button class="btn btn-secondary btn-sm" data-setting-name="'+escapeHtml(s.name)+'" data-setting-value="'+escapeHtml(String(s.value||''))+'" onclick="importSettingFromBtn(this)">Import</button></td></tr>';
+        });
+        html+='</tbody></table>';
+        body.innerHTML=html;
+      } else {
+        body.innerHTML='<div class="empty-state" style="padding:20px;"><p>No detailed settings found in AD for this GPO.<br>This GPO may have no configured settings yet.</p></div>';
+        countEl.textContent='0 settings';
+      }
+    } else {
+      body.innerHTML='<div class="alert alert-error" style="margin:12px;">'+escapeHtml(d.error||'Could not load settings from AD')+'</div>';
+      countEl.textContent='Error';
+    }
+  }catch(e){
+    body.innerHTML='<div class="alert alert-error" style="margin:12px;">Error: '+escapeHtml(e.message)+'</div>';
+  }
+  if(btn){btn.disabled=false;btn.textContent='Load AD Settings';}
+}
+
+function escapeHtml(s){
+  var d=document.createElement('div');
+  d.textContent=String(s);
+  return d.innerHTML;
+}
+
+function importSetting(name,value){
+  addSetting(name,value,'Imported from AD');
+  alert('Setting "'+name+'" added to console policy. Click Save Changes to persist.');
+}
+function importSettingFromBtn(btn){
+  var name=btn.getAttribute('data-setting-name')||'';
+  var value=btn.getAttribute('data-setting-value')||'';
+  importSetting(name,value);
+}
+
+document.getElementById('linkTarget').addEventListener('change', function(){
+  var opt = this.options[this.selectedIndex];
+  var type = opt.getAttribute('data-type');
+  if(type) document.getElementById('linkType').value = type;
+});
+
+async function addLink(){
+  var target=document.getElementById('linkTarget').value;
+  var targetType=document.getElementById('linkType').value;
+  if(!target){alert('Select a target OU or Domain');return;}
+  var form=document.createElement('form');form.method='POST';form.action='/gpo/'+policyId+'/link';
+  [{n:'target',v:target},{n:'targetType',v:targetType}].forEach(function(f){
+    var i=document.createElement('input');i.name=f.n;i.value=f.v;form.appendChild(i);
+  });
+  document.body.appendChild(form);form.submit();
+}
+async function removeLink(linkId){
+  if(!confirm('Remove this link? It will also be removed from Windows AD.'))return;
+  var r=await fetch('/gpo/link/'+linkId+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  var d=await r.json();
+  if(d.ok)location.reload();else alert(d.error);
+}
+async function delPolicy(){
+  if(!confirm('Delete policy "'+policyName+'"?\nThis also removes it from Windows AD GPMC.'))return;
+  var form=document.createElement('form');form.method='POST';form.action='/gpo/'+policyId+'/delete';
+  document.body.appendChild(form);form.submit();
+}
+</script>
+<%- include('../layout-end') %>

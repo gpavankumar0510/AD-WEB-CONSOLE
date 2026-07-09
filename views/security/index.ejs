@@ -1,0 +1,153 @@
+<%- include('../layout', { title: 'Security Recommendations', page: 'security', admin }) %>
+<style>
+.health-card{border-radius:var(--radius-lg);padding:14px;border:1px solid var(--border);background:var(--surface2);}
+.health-healthy{border-left:3px solid var(--success);}
+.health-warning{border-left:3px solid var(--warning);}
+.health-critical{border-left:3px solid var(--danger);}
+.health-unknown{border-left:3px solid var(--text3);}
+.rec-row{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);}
+.rec-row:last-child{border-bottom:none;}
+.rec-icon{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;font-weight:700;margin-top:1px;}
+.rec-icon-pass{background:var(--success-bg);color:var(--success);}
+.rec-icon-fail{background:var(--danger-bg);color:var(--danger);}
+.cat-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:14px 14px 6px;background:var(--surface3);border-bottom:1px solid var(--border);}
+</style>
+
+<div class="topbar">
+  <div><div class="topbar-title">Security Recommendations</div><div class="topbar-sub">SCAP scoring, AD health, and hardening guidance</div></div>
+  <div class="topbar-actions"><button class="btn btn-primary" id="rescanBtn" onclick="rescan()">Rescan Now</button></div>
+</div>
+<div class="content">
+<% if(error){%><div class="alert alert-error"><%= error %></div><%}%>
+
+<div id="scoreArea">
+<% if(!scap || scap.error){%>
+<div class="alert alert-warning">SCAP score not available<% if(scap&&scap.error){%>: <%= scap.error %><%}%>. Ensure the Active Directory PowerShell module is installed and accessible, then click Rescan Now.</div>
+<%}else{%>
+<% var gradeColor = scap.grade==='A'?'var(--success)':scap.grade==='B'?'var(--primary)':scap.grade==='C'?'var(--warning)':'var(--danger)'; %>
+<div style="background:var(--surface);border:2px solid <%= gradeColor %>;border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+  <div style="font-size:56px;font-weight:200;color:<%= gradeColor %>;font-family:var(--mono);"><%= scap.grade %></div>
+  <div style="flex:1;min-width:200px;">
+    <div style="font-size:22px;font-weight:700;color:<%= gradeColor %>"><%= scap.percent %>% SCAP Security Score</div>
+    <div style="font-size:13px;color:var(--text2);margin-top:4px;"><%= scap.score %> of <%= scap.total %> points &mdash; <%= (scap.checks||[]).filter(function(c){return !c.pass;}).length %> recommendation(s) to improve your score</div>
+  </div>
+</div>
+<%}%>
+</div>
+
+<!-- AD Health Summary -->
+<div id="healthArea" style="margin-bottom:18px;">
+<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px;">Active Directory Health</div>
+<% if(!health || !health.length){%>
+<div class="empty-state" style="padding:20px;"><p>No health data yet. Click Rescan Now.</p></div>
+<%}else{%>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
+<% for(var hi=0;hi<health.length;hi++){var h=health[hi];
+  var icon = h.status==='healthy'?'✅':h.status==='warning'?'⚠️':h.status==='critical'?'❌':'❔';
+%>
+<div class="health-card health-<%= h.status %>">
+  <div style="font-size:18px;margin-bottom:4px;"><%= icon %></div>
+  <div style="font-size:12px;font-weight:600;"><%= h.name %></div>
+  <div style="font-size:11px;color:var(--text3);margin-top:3px;"><%= h.detail %></div>
+</div>
+<%}%>
+</div>
+<%}%>
+</div>
+
+<!-- Recommendations grouped by category -->
+<div id="recsArea">
+<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px;">Detailed Recommendations</div>
+<% if(!scap || !scap.checks || !scap.checks.length){%>
+<div class="empty-state" style="padding:24px;"><p>No recommendations available yet. Click Rescan Now to run a full SCAP scan.</p></div>
+<%}else{
+  var byCategory = {};
+  scap.checks.forEach(function(c){
+    var cat = c.category || 'General';
+    if(!byCategory[cat]) byCategory[cat]=[];
+    byCategory[cat].push(c);
+  });
+  var catNames = Object.keys(byCategory);
+%>
+<div class="card">
+<% for(var ci=0;ci<catNames.length;ci++){var catName=catNames[ci];var items=byCategory[catName];%>
+<div class="cat-header"><%= catName %> (<%= items.filter(function(i){return i.pass;}).length %>/<%= items.length %> passing)</div>
+<% for(var ii=0;ii<items.length;ii++){var c=items[ii];%>
+<div class="rec-row">
+  <div class="rec-icon <%= c.pass?'rec-icon-pass':'rec-icon-fail' %>"><%= c.pass?'✓':'✕' %></div>
+  <div style="flex:1;">
+    <div style="font-size:13px;font-weight:600;"><%= c.name %></div>
+    <div style="font-size:12px;color:var(--text3);margin-top:2px;"><%= c.detail %></div>
+    <% if(!c.pass && c.remediation){%>
+    <div style="font-size:11px;color:var(--info);margin-top:6px;padding:6px 10px;background:var(--info-bg);border-radius:4px;font-family:var(--mono);word-break:break-word;">💡 <%= c.remediation %></div>
+    <%}%>
+  </div>
+  <% if(!c.pass){%>
+  <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+    <button class="btn btn-warning btn-sm" data-check-name="<%= c.name %>" onclick="applyFix(this)">🔧 Fix</button>
+    <span class="fix-status" style="font-size:10px;color:var(--text3);max-width:160px;text-align:right;"></span>
+  </div>
+  <%}%>
+</div>
+<%}%>
+<%}%>
+</div>
+<%}%>
+</div>
+
+</div>
+
+<script>
+function escapeHtmlSec(s){ var d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; }
+
+async function rescan(){
+  var btn=document.getElementById('rescanBtn');
+  btn.disabled=true; btn.textContent='Scanning...';
+  document.getElementById('scoreArea').innerHTML='<div class="alert alert-info">Running full SCAP scan and health checks (this can take up to 45 seconds)...</div>';
+  try{
+    var r=await fetch('/security/rescan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    var d=await r.json();
+    if(d.ok){
+      location.reload();
+    } else {
+      document.getElementById('scoreArea').innerHTML='<div class="alert alert-error">'+escapeHtmlSec(d.error)+'</div>';
+    }
+  }catch(e){
+    document.getElementById('scoreArea').innerHTML='<div class="alert alert-error">Error: '+escapeHtmlSec(e.message)+'</div>';
+  }
+  btn.disabled=false; btn.textContent='Rescan Now';
+}
+
+async function applyFix(btn){
+  var checkName = btn.getAttribute('data-check-name');
+  var statusEl = btn.parentElement.querySelector('.fix-status');
+  btn.disabled = true;
+  var orig = btn.textContent;
+  btn.textContent = 'Applying...';
+  statusEl.textContent = '';
+  try{
+    var r = await fetch('/security/fix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkName: checkName }),
+    });
+    var d = await r.json();
+    statusEl.textContent = d.message || (d.ok ? 'Fix applied.' : 'Fix failed.');
+    statusEl.style.color = d.ok ? 'var(--success)' : 'var(--danger)';
+    if (d.ok) {
+      btn.textContent = '✓ Applied';
+      btn.classList.remove('btn-warning');
+      btn.classList.add('btn-secondary');
+    } else {
+      btn.textContent = orig;
+      btn.disabled = false;
+    }
+  }catch(e){
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.style.color = 'var(--danger)';
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+</script>
+<%- include('../layout-end') %>
